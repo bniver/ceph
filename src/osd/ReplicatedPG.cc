@@ -1926,7 +1926,11 @@ void ReplicatedPG::do_op(OpRequestRef& op)
       return;
     }
     dout(20) << __func__ << "find_object_context got error " << r << dendl;
-    osd->reply_op_error(op, r);
+    if (op->may_write()) {
+      record_write_error(op, r);
+    } else {
+      osd->reply_op_error(op, r);
+    }
     return;
   }
 
@@ -2097,8 +2101,12 @@ void ReplicatedPG::do_op(OpRequestRef& op)
 
   if (r) {
     dout(20) << __func__ << " returned an error: " << r << dendl;
-    close_op_ctx(ctx);
-    osd->reply_op_error(op, r);
+    if (op->may_write()) {
+      record_write_error(op, r);
+    } else {
+      close_op_ctx(ctx);
+      osd->reply_op_error(op, r);
+    }
     return;
   }
 
@@ -2147,6 +2155,22 @@ void ReplicatedPG::do_op(OpRequestRef& op)
   } else if (op->may_write() || op->may_cache()) {
     osd->logger->tinc(l_osd_op_w_prepare_lat, prepare_latency);
   }
+}
+
+void ReplicatedPG::record_write_error(OpRequestRef& op, int r)
+{
+  dout(20) << __func__ << " r=" << r << dendl;
+  assert(op->may_write());
+  MOSDOp *m = static_cast<MOSDOp*>(op->get_req());
+  ObjectContextRef obc;
+  OpContext *ctx = new OpContext(op, m->get_reqid(), m->ops, obc, this);
+  int flags = CEPH_OSD_FLAG_ACK|CEPH_OSD_FLAG_ONDISK;
+  ctx->reply = new MOSDOpReply(m, r, get_osdmap()->get_epoch(), flags, true);
+  ctx->reply->set_reply_versions(eversion_t(), 0);
+  ctx->update_log_only = true;
+
+  prepare_log_update(ctx, pg_log_entry_t::ERROR, r);
+  prepare_and_send_repop(ctx);
 }
 
 ReplicatedPG::cache_result_t ReplicatedPG::maybe_handle_cache_detail(
@@ -2987,7 +3011,7 @@ void ReplicatedPG::execute_ctx(OpContext *ctx)
   ctx->reply->set_result(result);
 
   // read or error?
-  if (ctx->op_t->empty() || result < 0) {
+  if ((ctx->op_t->empty() || result < 0) && !ctx->update_log_only) {
     // finish side-effects
     if (result >= 0)
       do_osd_op_effects(ctx, m->get_connection());
@@ -3029,6 +3053,20 @@ void ReplicatedPG::execute_ctx(OpContext *ctx)
     }
   }
 
+  if (ctx->update_log_only) {
+    assert(result < 0);
+    // just append to pg log for dup detection
+    prepare_log_update(ctx, pg_log_entry_t::ERROR, result);
+  } else {
+    ctx->register_on_success(
+	[ctx, this]() {
+	  do_osd_op_effects(
+		ctx,
+		ctx->op ? ctx->op->get_req()->get_connection() :
+		ConnectionRef());
+	});
+  }
+
   // no need to capture PG ref, repop cancel will handle that
   // Can capture the ctx by pointer, it's owned by the repop
   ctx->register_on_applied(
@@ -3056,9 +3094,15 @@ void ReplicatedPG::execute_ctx(OpContext *ctx)
       if (ctx->readable_stamp == utime_t())
 	ctx->readable_stamp = ceph_clock_now(cct);
     });
+  prepare_and_send_repop(ctx);
+}
+
+void ReplicatedPG::prepare_and_send_repop(OpContext *ctx)
+{
+  MOSDOp *m = static_cast<MOSDOp*>(ctx->op->get_req());
   ctx->register_on_commit(
     [m, ctx, this](){
-      if (ctx->op)
+      if (ctx->op && !ctx->update_log_only)
 	log_op_stats(
 	  ctx);
 
@@ -3079,13 +3123,6 @@ void ReplicatedPG::execute_ctx(OpContext *ctx)
 	ctx->op->mark_commit_sent();
       }
     });
-  ctx->register_on_success(
-    [ctx, this]() {
-      do_osd_op_effects(
-	ctx,
-	ctx->op ? ctx->op->get_req()->get_connection() :
-	ConnectionRef());
-    });
   ctx->register_on_finish(
     [ctx, this]() {
       delete ctx;
@@ -3094,7 +3131,7 @@ void ReplicatedPG::execute_ctx(OpContext *ctx)
   // issue replica writes
   ceph_tid_t rep_tid = osd->get_tid();
 
-  RepGather *repop = new_repop(ctx, obc, rep_tid);
+  RepGather *repop = new_repop(ctx, ctx->obc, rep_tid);
 
   issue_repop(repop, ctx);
   eval_repop(repop);
@@ -6619,8 +6656,14 @@ int ReplicatedPG::prepare_transaction(OpContext *ctx)
 
   // prepare the actual mutation
   int result = do_osd_ops(ctx, ctx->ops);
-  if (result < 0)
+  if (result < 0) {
+    if (ctx->op->may_write()) {
+      // need to save the error code in the pg log, to detect dup ops,
+      // but do nothing else
+      ctx->update_log_only = true;
+    }
     return result;
+  }
 
   // read-op?  done?
   if (ctx->op_t->empty() && !ctx->modify) {
@@ -6818,10 +6861,7 @@ void ReplicatedPG::finish_ctx(OpContext *ctx, int log_op_type, bool maintain_ssc
   }
 
   // append to log
-  ctx->log.push_back(pg_log_entry_t(log_op_type, soid, ctx->at_version,
-				    ctx->obs->oi.version,
-				    ctx->user_at_version, ctx->reqid,
-				    ctx->mtime, 0));
+  prepare_log_update(ctx, log_op_type, 0);
   if (soid.snap < CEPH_NOSNAP) {
     switch (log_op_type) {
     case pg_log_entry_t::MODIFY:
@@ -6855,6 +6895,19 @@ void ReplicatedPG::finish_ctx(OpContext *ctx, int log_op_type, bool maintain_ssc
   }
 
   apply_ctx_stats(ctx, scrub_ok);
+}
+
+void ReplicatedPG::prepare_log_update(OpContext *ctx, int log_op_type,
+				      int return_code)
+{
+  ctx->log.push_back(pg_log_entry_t(log_op_type,
+				    ctx->obs->oi.soid,
+				    ctx->at_version,
+				    ctx->obs->oi.version,
+				    ctx->user_at_version,
+				    ctx->reqid,
+				    ctx->mtime,
+				    return_code));
 }
 
 void ReplicatedPG::apply_ctx_stats(OpContext *ctx, bool scrub_ok)
