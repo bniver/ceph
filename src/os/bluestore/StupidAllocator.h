@@ -11,7 +11,7 @@
 #include "os/bluestore/bluestore_types.h"
 
 class StupidAllocator : public Allocator {
-  std::mutex lock;
+  CEPH_MUTEX lock;
 
   int64_t num_free;     ///< total bytes in freelist
   int64_t num_uncommitted;

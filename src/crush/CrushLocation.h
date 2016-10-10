@@ -13,7 +13,7 @@ class CephContext;
 class CrushLocation {
   CephContext *cct;
   std::multimap<std::string,std::string> loc;
-  std::mutex lock;
+  CEPH_MUTEX lock;
 
   int _parse(const std::string& s);
 
@@ -27,7 +27,7 @@ public:
   int init_on_startup();
 
   std::multimap<std::string,std::string> get_location() {
-    std::lock_guard<std::mutex> l(lock);
+    std::lock_guard<CEPH_MUTEX> l(lock);
     return loc;
   }
 };

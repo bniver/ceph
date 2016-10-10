@@ -14,6 +14,8 @@
 #include <sys/types.h>
 #include <string.h>
 
+#include "include/ceph_mutex.h"
+
 #include "include/types.h"
 #include "include/rados/librgw.h"
 #include "rgw/rgw_acl_s3.h"
@@ -62,7 +64,7 @@ namespace rgw {
 
   using std::string;
 
-  static std::mutex librgw_mtx;
+  static CEPH_MUTEX librgw_mtx;
 
   RGWLib rgwlib;
 
@@ -632,7 +634,7 @@ int librgw_create(librgw_t* rgw, int argc, char **argv)
   int rc = -EINVAL;
 
   if (! g_ceph_context) {
-    std::lock_guard<std::mutex> lg(librgw_mtx);
+    std::lock_guard<CEPH_MUTEX> lg(librgw_mtx);
     if (! g_ceph_context) {
       vector<const char*> args;
       argv_to_vec(argc, const_cast<const char**>(argv), args);

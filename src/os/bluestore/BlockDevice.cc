@@ -17,6 +17,8 @@
 #include <libgen.h>
 #include <unistd.h>
 
+#include "include/ceph_mutex.h"
+
 #include "KernelDevice.h"
 #if defined(HAVE_SPDK)
 #include "NVMEDevice.h"
@@ -30,7 +32,7 @@
 
 void IOContext::aio_wait()
 {
-  std::unique_lock<std::mutex> l(lock);
+  std::unique_lock<CEPH_MUTEX> l(lock);
   // see _aio_thread for waker logic
   ++num_waiting;
   while (num_running.load() > 0 || num_reading.load() > 0) {
@@ -71,7 +73,7 @@ BlockDevice *BlockDevice::create(const string& path, aio_callback_t cb, void *cb
 
 void BlockDevice::queue_reap_ioc(IOContext *ioc)
 {
-  std::lock_guard<std::mutex> l(ioc_reap_lock);
+  std::lock_guard<CEPH_MUTEX> l(ioc_reap_lock);
   if (ioc_reap_count.load() == 0)
     ++ioc_reap_count;
   ioc_reap_queue.push_back(ioc);
@@ -80,7 +82,7 @@ void BlockDevice::queue_reap_ioc(IOContext *ioc)
 void BlockDevice::reap_ioc()
 {
   if (ioc_reap_count.load()) {
-    std::lock_guard<std::mutex> l(ioc_reap_lock);
+    std::lock_guard<CEPH_MUTEX> l(ioc_reap_lock);
     for (auto p : ioc_reap_queue) {
       dout(20) << __func__ << " reap ioc " << p << dendl;
       delete p;

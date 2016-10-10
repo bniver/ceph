@@ -206,9 +206,9 @@ public:
 private:
   // me
   CephContext *cct;
-  std::mutex lock;
-  typedef std::lock_guard<std::mutex> lock_guard;
-  typedef std::unique_lock<std::mutex> unique_lock;
+  CEPH_MUTEX lock;
+  typedef std::lock_guard<CEPH_MUTEX> lock_guard;
+  typedef std::unique_lock<CEPH_MUTEX> unique_lock;
   Finisher *finisher;
   Header last_written;
   inodeno_t ino;

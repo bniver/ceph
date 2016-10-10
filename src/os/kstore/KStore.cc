@@ -19,6 +19,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include "include/ceph_mutex.h"
+
 #include "KStore.h"
 #include "kv.h"
 #include "include/compat.h"
@@ -405,7 +407,7 @@ static void get_omap_tail(uint64_t id, string *out)
 
 void KStore::Onode::flush()
 {
-  std::unique_lock<std::mutex> l(flush_lock);
+  std::unique_lock<CEPH_MUTEX> l(flush_lock);
   dout(20) << __func__ << " " << flush_txns << dendl;
   while (!flush_txns.empty())
     flush_cond.wait(l);
@@ -426,7 +428,7 @@ void KStore::OnodeHashLRU::_touch(OnodeRef o)
 
 void KStore::OnodeHashLRU::add(const ghobject_t& oid, OnodeRef o)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(30) << __func__ << " " << oid << " " << o << dendl;
   assert(onode_map.count(oid) == 0);
   onode_map[oid] = o;
@@ -435,7 +437,7 @@ void KStore::OnodeHashLRU::add(const ghobject_t& oid, OnodeRef o)
 
 KStore::OnodeRef KStore::OnodeHashLRU::lookup(const ghobject_t& oid)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(30) << __func__ << dendl;
   ceph::unordered_map<ghobject_t,OnodeRef>::iterator p = onode_map.find(oid);
   if (p == onode_map.end()) {
@@ -449,7 +451,7 @@ KStore::OnodeRef KStore::OnodeHashLRU::lookup(const ghobject_t& oid)
 
 void KStore::OnodeHashLRU::clear()
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << dendl;
   lru.clear();
   onode_map.clear();
@@ -458,7 +460,7 @@ void KStore::OnodeHashLRU::clear()
 void KStore::OnodeHashLRU::rename(const ghobject_t& old_oid,
 				    const ghobject_t& new_oid)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(30) << __func__ << " " << old_oid << " -> " << new_oid << dendl;
   ceph::unordered_map<ghobject_t,OnodeRef>::iterator po, pn;
   po = onode_map.find(old_oid);
@@ -487,7 +489,7 @@ bool KStore::OnodeHashLRU::get_next(
   const ghobject_t& after,
   pair<ghobject_t,OnodeRef> *next)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(20) << __func__ << " after " << after << dendl;
 
   if (after == ghobject_t()) {
@@ -515,7 +517,7 @@ bool KStore::OnodeHashLRU::get_next(
 
 int KStore::OnodeHashLRU::trim(int max)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(20) << __func__ << " max " << max
 	   << " size " << onode_map.size() << dendl;
   int trimmed = 0;
@@ -1055,7 +1057,7 @@ void KStore::_sync()
 {
   dout(10) << __func__ << dendl;
 
-  std::unique_lock<std::mutex> l(kv_lock);
+  std::unique_lock<CEPH_MUTEX> l(kv_lock);
   while (!kv_committing.empty() ||
 	 !kv_queue.empty()) {
     dout(20) << " waiting for kv to commit" << dendl;
@@ -1085,14 +1087,14 @@ KStore::CollectionRef KStore::_get_collection(coll_t cid)
 void KStore::_queue_reap_collection(CollectionRef& c)
 {
   dout(10) << __func__ << " " << c->cid << dendl;
-  std::lock_guard<std::mutex> l(reap_lock);
+  std::lock_guard<CEPH_MUTEX> l(reap_lock);
   removed_collections.push_back(c);
 }
 
 void KStore::_reap_collections()
 {
   list<CollectionRef> removed_colls;
-  std::lock_guard<std::mutex> l(reap_lock);
+  std::lock_guard<CEPH_MUTEX> l(reap_lock);
   removed_colls.swap(removed_collections);
 
   for (list<CollectionRef>::iterator p = removed_colls.begin();
@@ -1847,7 +1849,7 @@ void KStore::_assign_nid(TransContext *txc, OnodeRef o)
 {
   if (o->onode.nid)
     return;
-  std::lock_guard<std::mutex> l(nid_lock);
+  std::lock_guard<CEPH_MUTEX> l(nid_lock);
   o->onode.nid = ++nid_last;
   dout(20) << __func__ << " " << o->oid << " nid " << o->onode.nid << dendl;
   if (nid_last > nid_max) {
@@ -1878,7 +1880,7 @@ void KStore::_txc_state_proc(TransContext *txc)
       txc->log_state_latency(logger, l_kstore_state_prepare_lat);
       txc->state = TransContext::STATE_KV_QUEUED;
       if (!g_conf->kstore_sync_transaction) {
-	std::lock_guard<std::mutex> l(kv_lock);
+	std::lock_guard<CEPH_MUTEX> l(kv_lock);
 	if (g_conf->kstore_sync_submit_transaction) {
           int r = db->submit_transaction(txc->t);
 	  assert(r == 0);
@@ -1932,7 +1934,7 @@ void KStore::_txc_finalize(OpSequencer *osr, TransContext *txc)
     dout(20) << " onode size is " << bl.length() << dendl;
     txc->t->set(PREFIX_OBJ, (*p)->key, bl);
 
-    std::lock_guard<std::mutex> l((*p)->flush_lock);
+    std::lock_guard<CEPH_MUTEX> l((*p)->flush_lock);
     (*p)->flush_txns.insert(txc);
   }
 }
@@ -1971,7 +1973,7 @@ void KStore::_txc_finish(TransContext *txc)
   for (set<OnodeRef>::iterator p = txc->onodes.begin();
        p != txc->onodes.end();
        ++p) {
-    std::lock_guard<std::mutex> l((*p)->flush_lock);
+    std::lock_guard<CEPH_MUTEX> l((*p)->flush_lock);
     dout(20) << __func__ << " onode " << *p << " had " << (*p)->flush_txns
 	     << dendl;
     assert((*p)->flush_txns.count(txc));
@@ -1992,7 +1994,7 @@ void KStore::_txc_finish(TransContext *txc)
 
   OpSequencerRef osr = txc->osr;
   {
-    std::lock_guard<std::mutex> l(osr->qlock);
+    std::lock_guard<CEPH_MUTEX> l(osr->qlock);
     txc->state = TransContext::STATE_DONE;
   }
 
@@ -2001,7 +2003,7 @@ void KStore::_txc_finish(TransContext *txc)
 
 void KStore::_osr_reap_done(OpSequencer *osr)
 {
-  std::lock_guard<std::mutex> l(osr->qlock);
+  std::lock_guard<CEPH_MUTEX> l(osr->qlock);
   dout(20) << __func__ << " osr " << osr << dendl;
   while (!osr->q.empty()) {
     TransContext *txc = &osr->q.front();
@@ -2027,7 +2029,7 @@ void KStore::_osr_reap_done(OpSequencer *osr)
 void KStore::_kv_sync_thread()
 {
   dout(10) << __func__ << " start" << dendl;
-  std::unique_lock<std::mutex> l(kv_lock);
+  std::unique_lock<CEPH_MUTEX> l(kv_lock);
   while (true) {
     assert(kv_committing.empty());
     if (kv_queue.empty()) {

@@ -18,7 +18,7 @@ public:
   ObjectStore *store;
   std::string mount_point;
   struct fs_info *info;
-  std::mutex lock;
+  CEPH_MUTEX lock;
 
   struct OpenFile {
     std::string path;

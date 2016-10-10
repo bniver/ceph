@@ -141,8 +141,8 @@ public:
  * delay = h + (r - h)((m - e)/(1 - h))
  */
 class BackoffThrottle {
-  std::mutex lock;
-  using locker = std::unique_lock<std::mutex>;
+  CEPH_MUTEX lock;
+  using locker = std::unique_lock<CEPH_MUTEX>;
 
   unsigned next_cond = 0;
 

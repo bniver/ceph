@@ -15,6 +15,8 @@
  * 
  */
 
+#include "include/ceph_mutex.h"
+
 #include <errno.h>
 #include <dlfcn.h>
 

@@ -18,6 +18,8 @@
  * of the interfaces defined in BitMapArea.
  */
 
+#include "include/ceph_mutex.h"
+
 #include "common/dout.h"
 #include "BitAllocator.h"
 #include <assert.h>
@@ -789,14 +791,14 @@ bool BitMapAreaIN::is_exhausted()
 
 int64_t BitMapAreaIN::add_used_blocks(int64_t blks)
 {
-  std::lock_guard<std::mutex> l(m_blocks_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_blocks_lock);
   m_used_blocks += blks;
   return m_used_blocks;
 }
 
 int64_t BitMapAreaIN::sub_used_blocks(int64_t num_blocks)
 {
-  std::lock_guard<std::mutex> l(m_blocks_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_blocks_lock);
 
   int64_t used_blks = m_used_blocks;
   m_used_blocks -= num_blocks;
@@ -806,14 +808,14 @@ int64_t BitMapAreaIN::sub_used_blocks(int64_t num_blocks)
 
 int64_t BitMapAreaIN::get_used_blocks()
 {
-  std::lock_guard<std::mutex> l(m_blocks_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_blocks_lock);
   return m_used_blocks;
 }
 
 bool BitMapAreaIN::reserve_blocks(int64_t num)
 {
   bool res = false;
-  std::lock_guard<std::mutex> u_l(m_blocks_lock);
+  std::lock_guard<CEPH_MUTEX> u_l(m_blocks_lock);
   if (m_used_blocks + num <= size()) {
     m_used_blocks += num;
     m_reserved_blocks += num;
@@ -825,7 +827,7 @@ bool BitMapAreaIN::reserve_blocks(int64_t num)
 
 void BitMapAreaIN::unreserve(int64_t needed, int64_t allocated)
 {
-  std::lock_guard<std::mutex> l(m_blocks_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_blocks_lock);
   m_used_blocks -= (needed - allocated);
   m_reserved_blocks -= needed;
   alloc_assert(m_used_blocks >= 0);
@@ -833,7 +835,7 @@ void BitMapAreaIN::unreserve(int64_t needed, int64_t allocated)
 }
 int64_t BitMapAreaIN::get_reserved_blocks()
 {
-  std::lock_guard<std::mutex> l(m_blocks_lock); 
+  std::lock_guard<CEPH_MUTEX> l(m_blocks_lock); 
   return m_reserved_blocks;
 }
 

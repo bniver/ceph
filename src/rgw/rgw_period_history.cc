@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include "rgw_period_history.h"
 #include "rgw_rados.h"
 
@@ -53,17 +55,17 @@ using Cursor = RGWPeriodHistory::Cursor;
 
 const RGWPeriod& Cursor::get_period() const
 {
-  std::lock_guard<std::mutex> lock(*mutex);
+  std::lock_guard<CEPH_MUTEX> lock(*mutex);
   return history->get(epoch);
 }
 bool Cursor::has_prev() const
 {
-  std::lock_guard<std::mutex> lock(*mutex);
+  std::lock_guard<CEPH_MUTEX> lock(*mutex);
   return epoch > history->get_oldest_epoch();
 }
 bool Cursor::has_next() const
 {
-  std::lock_guard<std::mutex> lock(*mutex);
+  std::lock_guard<CEPH_MUTEX> lock(*mutex);
   return epoch < history->get_newest_epoch();
 }
 
@@ -102,7 +104,7 @@ class RGWPeriodHistory::Impl final {
   Puller *const puller; //< interface for pulling missing periods
   Cursor current_cursor; //< Cursor to realm's current period
 
-  mutable std::mutex mutex; //< protects the histories
+  mutable CEPH_MUTEX mutex; //< protects the histories
 
   /// set of disjoint histories that are missing intermediate periods needed to
   /// connect them together
@@ -147,7 +149,7 @@ Cursor RGWPeriodHistory::Impl::attach(RGWPeriod&& period)
   for (;;) {
     {
       // hold the lock over insert, and while accessing the unsafe cursor
-      std::lock_guard<std::mutex> lock(mutex);
+      std::lock_guard<CEPH_MUTEX> lock(mutex);
 
       auto cursor = insert_locked(std::move(period));
       if (!cursor) {
@@ -187,7 +189,7 @@ Cursor RGWPeriodHistory::Impl::insert(RGWPeriod&& period)
     return Cursor{-EINVAL};
   }
 
-  std::lock_guard<std::mutex> lock(mutex);
+  std::lock_guard<CEPH_MUTEX> lock(mutex);
 
   auto cursor = insert_locked(std::move(period));
 

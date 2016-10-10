@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include "BitmapFreelistManager.h"
 #include "kv/KeyValueDB.h"
 #include "kv.h"
@@ -175,7 +177,7 @@ void BitmapFreelistManager::shutdown()
 
 void BitmapFreelistManager::enumerate_reset()
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   enumerate_offset = 0;
   enumerate_bl_pos = 0;
   enumerate_bl.clear();
@@ -213,7 +215,7 @@ int get_next_set_bit(bufferlist& bl, int start)
 
 bool BitmapFreelistManager::enumerate_next(uint64_t *offset, uint64_t *length)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
 
   // initial base case is a bit awkward
   if (enumerate_offset == 0 && enumerate_bl_pos == 0) {

@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include "BlueFS.h"
 
 #include "common/debug.h"
@@ -136,7 +138,7 @@ uint64_t BlueFS::get_block_device_size(unsigned id)
 
 void BlueFS::add_block_extent(unsigned id, uint64_t offset, uint64_t length)
 {
-  std::unique_lock<std::mutex> l(lock);
+  std::unique_lock<CEPH_MUTEX> l(lock);
   dout(1) << __func__ << " bdev " << id
           << " 0x" << std::hex << offset << "~" << length << std::dec
 	  << dendl;
@@ -161,7 +163,7 @@ void BlueFS::add_block_extent(unsigned id, uint64_t offset, uint64_t length)
 int BlueFS::reclaim_blocks(unsigned id, uint64_t want,
 			   uint64_t *offset, uint32_t *length)
 {
-  std::unique_lock<std::mutex> l(lock);
+  std::unique_lock<CEPH_MUTEX> l(lock);
   dout(1) << __func__ << " bdev " << id
           << " want 0x" << std::hex << want << std::dec << dendl;
   assert(id < alloc.size());
@@ -190,7 +192,7 @@ int BlueFS::reclaim_blocks(unsigned id, uint64_t want,
 
 uint64_t BlueFS::get_fs_usage()
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   uint64_t total_bytes = 0;
   for (auto& p : file_map) {
     total_bytes += p.second->fnode.get_allocated();
@@ -200,21 +202,21 @@ uint64_t BlueFS::get_fs_usage()
 
 uint64_t BlueFS::get_total(unsigned id)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   assert(id < block_all.size());
   return block_total[id];
 }
 
 uint64_t BlueFS::get_free(unsigned id)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   assert(id < alloc.size());
   return alloc[id]->get_free();
 }
 
 void BlueFS::get_usage(vector<pair<uint64_t,uint64_t>> *usage)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   usage->resize(bdev.size());
   for (unsigned id = 0; id < bdev.size(); ++id) {
     if (!bdev[id]) {
@@ -237,7 +239,7 @@ void BlueFS::get_usage(vector<pair<uint64_t,uint64_t>> *usage)
 
 int BlueFS::get_block_extents(unsigned id, interval_set<uint64_t> *extents)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " bdev " << id << dendl;
   if (id >= block_all.size())
     return -EINVAL;
@@ -247,7 +249,7 @@ int BlueFS::get_block_extents(unsigned id, interval_set<uint64_t> *extents)
 
 int BlueFS::mkfs(uuid_d osd_uuid)
 {
-  std::unique_lock<std::mutex> l(lock);
+  std::unique_lock<CEPH_MUTEX> l(lock);
   dout(1) << __func__
 	  << " osd_uuid " << osd_uuid
 	  << dendl;
@@ -402,7 +404,7 @@ void BlueFS::umount()
 
 int BlueFS::fsck()
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(1) << __func__ << dendl;
   // hrm, i think we check everything on mount...
   return 0;
@@ -983,7 +985,7 @@ uint64_t BlueFS::_estimate_log_size()
 
 void BlueFS::compact_log()
 {
-  std::unique_lock<std::mutex> l(lock);
+  std::unique_lock<CEPH_MUTEX> l(lock);
   if (g_conf->bluefs_compact_log_sync) {
      _compact_log_sync();
   } else {
@@ -1118,7 +1120,7 @@ void BlueFS::_compact_log_sync()
  *
  * 8. Release the old log space.  Clean up.
  */
-void BlueFS::_compact_log_async(std::unique_lock<std::mutex>& l)
+void BlueFS::_compact_log_async(std::unique_lock<CEPH_MUTEX>& l)
 {
   dout(10) << __func__ << dendl;
   File *log_file = log_writer->file.get();
@@ -1261,11 +1263,11 @@ void BlueFS::_pad_bl(bufferlist& bl)
 
 void BlueFS::flush_log()
 {
-  std::unique_lock<std::mutex> l(lock);
+  std::unique_lock<CEPH_MUTEX> l(lock);
   _flush_and_sync_log(l);
 }
 
-int BlueFS::_flush_and_sync_log(std::unique_lock<std::mutex>& l,
+int BlueFS::_flush_and_sync_log(std::unique_lock<CEPH_MUTEX>& l,
 				uint64_t want_seq,
 				uint64_t jump_to)
 {
@@ -1644,7 +1646,7 @@ int BlueFS::_truncate(FileWriter *h, uint64_t offset)
   return 0;
 }
 
-int BlueFS::_fsync(FileWriter *h, std::unique_lock<std::mutex>& l)
+int BlueFS::_fsync(FileWriter *h, std::unique_lock<CEPH_MUTEX>& l)
 {
   dout(10) << __func__ << " " << h << " " << h->file->fnode << dendl;
   int r = _flush(h, true);
@@ -1762,7 +1764,7 @@ int BlueFS::_preallocate(FileRef f, uint64_t off, uint64_t len)
 
 void BlueFS::sync_metadata()
 {
-  std::unique_lock<std::mutex> l(lock);
+  std::unique_lock<CEPH_MUTEX> l(lock);
   if (log_t.empty()) {
     dout(10) << __func__ << " - no pending log events" << dendl;
     return;
@@ -1800,7 +1802,7 @@ int BlueFS::open_for_write(
   FileWriter **h,
   bool overwrite)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << dirname << "/" << filename << dendl;
   map<string,DirRef>::iterator p = dir_map.find(dirname);
   DirRef dir;
@@ -1919,7 +1921,7 @@ int BlueFS::open_for_read(
   FileReader **h,
   bool random)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << dirname << "/" << filename
 	   << (random ? " (random)":" (sequential)") << dendl;
   map<string,DirRef>::iterator p = dir_map.find(dirname);
@@ -1948,7 +1950,7 @@ int BlueFS::rename(
   const string& old_dirname, const string& old_filename,
   const string& new_dirname, const string& new_filename)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << old_dirname << "/" << old_filename
 	   << " -> " << new_dirname << "/" << new_filename << dendl;
   map<string,DirRef>::iterator p = dir_map.find(old_dirname);
@@ -1995,7 +1997,7 @@ int BlueFS::rename(
 
 int BlueFS::mkdir(const string& dirname)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << dirname << dendl;
   map<string,DirRef>::iterator p = dir_map.find(dirname);
   if (p != dir_map.end()) {
@@ -2009,7 +2011,7 @@ int BlueFS::mkdir(const string& dirname)
 
 int BlueFS::rmdir(const string& dirname)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << dirname << dendl;
   map<string,DirRef>::iterator p = dir_map.find(dirname);
   if (p == dir_map.end()) {
@@ -2028,7 +2030,7 @@ int BlueFS::rmdir(const string& dirname)
 
 bool BlueFS::dir_exists(const string& dirname)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   map<string,DirRef>::iterator p = dir_map.find(dirname);
   bool exists = p != dir_map.end();
   dout(10) << __func__ << " " << dirname << " = " << (int)exists << dendl;
@@ -2038,7 +2040,7 @@ bool BlueFS::dir_exists(const string& dirname)
 int BlueFS::stat(const string& dirname, const string& filename,
 		 uint64_t *size, utime_t *mtime)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << dirname << "/" << filename << dendl;
   map<string,DirRef>::iterator p = dir_map.find(dirname);
   if (p == dir_map.end()) {
@@ -2066,7 +2068,7 @@ int BlueFS::stat(const string& dirname, const string& filename,
 int BlueFS::lock_file(const string& dirname, const string& filename,
 		      FileLock **plock)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << dirname << "/" << filename << dendl;
   map<string,DirRef>::iterator p = dir_map.find(dirname);
   if (p == dir_map.end()) {
@@ -2104,7 +2106,7 @@ int BlueFS::lock_file(const string& dirname, const string& filename,
 
 int BlueFS::unlock_file(FileLock *fl)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << fl << " on " << fl->file->fnode << dendl;
   assert(fl->file->locked);
   fl->file->locked = false;
@@ -2114,7 +2116,7 @@ int BlueFS::unlock_file(FileLock *fl)
 
 int BlueFS::readdir(const string& dirname, vector<string> *ls)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << dirname << dendl;
   if (dirname.size() == 0) {
     // list dirs
@@ -2142,7 +2144,7 @@ int BlueFS::readdir(const string& dirname, vector<string> *ls)
 
 int BlueFS::unlink(const string& dirname, const string& filename)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << dirname << "/" << filename << dendl;
   map<string,DirRef>::iterator p = dir_map.find(dirname);
   if (p == dir_map.end()) {

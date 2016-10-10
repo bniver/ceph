@@ -689,7 +689,7 @@ public:
 class RGWLDAPAuthEngine: RGWS3V2AuthEngine
 {
   static rgw::LDAPHelper* ldh;
-  static std::mutex mtx;
+  static CEPH_MUTEX mtx;
   rgw::RGWToken base64_token;
 
   static void init(CephContext* const cct);

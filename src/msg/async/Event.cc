@@ -14,6 +14,8 @@
  *
  */
 
+#include "include/ceph_mutex.h"
+
 #include "common/errno.h"
 #include "Event.h"
 
@@ -112,7 +114,7 @@ int EventCenter::init(int n, unsigned i)
 EventCenter::~EventCenter()
 {
   {
-    std::lock_guard<std::mutex> l(external_lock);
+    std::lock_guard<CEPH_MUTEX> l(external_lock);
     while (!external_events.empty()) {
       EventCallbackRef e = external_events.front();
       if (e)

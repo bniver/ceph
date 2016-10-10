@@ -14,6 +14,8 @@
 #ifndef CEPH_TYPES_H
 #define CEPH_TYPES_H
 
+
+
 // this is needed for ceph_fs to compile in userland
 #include "int_types.h"
 #include "byteorder.h"
@@ -23,6 +25,7 @@
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <string.h>
+
 
 // <macro hackery>
 // temporarily remap __le* to ceph_le* for benefit of shared kernel/userland headers

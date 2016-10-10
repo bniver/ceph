@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include <errno.h>
 #include <array>
 #include <string.h>
@@ -4309,12 +4311,12 @@ RGWOp* RGWHandler_REST_Service_S3Website::get_obj_op(bool get_data)
 }
 
 rgw::LDAPHelper* RGWLDAPAuthEngine::ldh = nullptr;
-std::mutex RGWLDAPAuthEngine::mtx;
+CEPH_MUTEX RGWLDAPAuthEngine::mtx;
 
 void RGWLDAPAuthEngine::init(CephContext* const cct)
 {
   if (! ldh) {
-    std::lock_guard<std::mutex> lck(mtx);
+    std::lock_guard<CEPH_MUTEX> lck(mtx);
     if (! ldh) {
       const string& ldap_uri = cct->_conf->rgw_ldap_uri;
       const string& ldap_binddn = cct->_conf->rgw_ldap_binddn;

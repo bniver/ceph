@@ -34,7 +34,7 @@ struct IOContext {
   void *nvme_task_last = nullptr;
 #endif
 
-  std::mutex lock;
+  CEPH_MUTEX lock;
   std::condition_variable cond;
 
   list<FS::aio_t> pending_aios;    ///< not yet submitted
@@ -53,7 +53,7 @@ struct IOContext {
   IOContext &operator=(const IOContext& other);
 
   bool has_aios() {
-    std::lock_guard<std::mutex> l(lock);
+    std::lock_guard<CEPH_MUTEX> l(lock);
     return num_pending.load() || num_running.load();
   }
 
@@ -61,7 +61,7 @@ struct IOContext {
 
   void aio_wake() {
     if (num_waiting.load()) {
-      std::lock_guard<std::mutex> l(lock);
+      std::lock_guard<CEPH_MUTEX> l(lock);
       cond.notify_all();
     }
   }
@@ -69,7 +69,7 @@ struct IOContext {
 
 
 class BlockDevice {
-  std::mutex ioc_reap_lock;
+  CEPH_MUTEX ioc_reap_lock;
   vector<IOContext*> ioc_reap_queue;
   std::atomic_int ioc_reap_count = {0};
 

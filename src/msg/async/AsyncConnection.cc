@@ -14,6 +14,8 @@
  *
  */
 
+#include "include/ceph_mutex.h"
+
 #include <unistd.h>
 
 #include "include/Context.h"
@@ -325,7 +327,7 @@ void AsyncConnection::process()
   ssize_t r = 0;
   int prev_state = state;
   bool already_dispatch_writer = false;
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   last_active = ceph::coarse_mono_clock::now();
   do {
     ldout(async_msgr->cct, 20) << __func__ << " prev state is " << get_state_name(prev_state) << dendl;
@@ -834,7 +836,7 @@ ssize_t AsyncConnection::_process_connection()
   switch(state) {
     case STATE_WAIT_SEND:
       {
-        std::lock_guard<std::mutex> l(write_lock);
+        std::lock_guard<CEPH_MUTEX> l(write_lock);
         if (!outcoming_bl.length()) {
           assert(state_after_send);
           state = state_after_send;
@@ -1682,7 +1684,7 @@ ssize_t AsyncConnection::handle_connect_msg(ceph_msg_connect &connect, bufferlis
         [existing, new_worker, new_center, connect, reply, authorizer_reply](ConnectedSocket &cs) mutable {
       // we need to delete time event in original thread
       {
-        std::lock_guard<std::mutex> l(existing->lock);
+        std::lock_guard<CEPH_MUTEX> l(existing->lock);
         if (existing->state == STATE_NONE) {
           existing->shutdown_socket();
           existing->cs = std::move(cs);
@@ -1705,7 +1707,7 @@ ssize_t AsyncConnection::handle_connect_msg(ceph_msg_connect &connect, bufferlis
       // Then if we mark down `existing`, it will execute in another thread and clean up connection.
       // Previous event will result in segment fault
       auto transfer_existing = [existing, connect, reply, authorizer_reply]() mutable {
-        std::lock_guard<std::mutex> l(existing->lock);
+        std::lock_guard<CEPH_MUTEX> l(existing->lock);
         if (existing->state == STATE_CLOSED)
           return ;
         assert(existing->state == STATE_NONE);
@@ -1842,7 +1844,7 @@ void AsyncConnection::accept(ConnectedSocket socket, entity_addr_t &addr)
   ldout(async_msgr->cct, 10) << __func__ << " sd=" << socket.fd() << dendl;
   assert(socket.fd() > 0);
 
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   cs = std::move(socket);
   socket_addr = addr;
   state = STATE_ACCEPTING;
@@ -1868,7 +1870,7 @@ int AsyncConnection::send_message(Message *m)
 
   if (async_msgr->get_myaddr() == get_peer_addr()) { //loopback connection
     ldout(async_msgr->cct, 20) << __func__ << " " << *m << " local" << dendl;
-    std::lock_guard<std::mutex> l(write_lock);
+    std::lock_guard<CEPH_MUTEX> l(write_lock);
     if (can_write != WriteStatus::CLOSED) {
       dispatch_queue->local_delivery(m, m->get_priority());
     } else {
@@ -1892,7 +1894,7 @@ int AsyncConnection::send_message(Message *m)
   if (can_fast_prepare)
     prepare_send_message(f, m, bl);
 
-  std::lock_guard<std::mutex> l(write_lock);
+  std::lock_guard<CEPH_MUTEX> l(write_lock);
   // "features" changes will change the payload encoding
   if (can_fast_prepare && (can_write == WriteStatus::NOWRITE || get_features() != f)) {
     // ensure the correctness of message encoding
@@ -1942,7 +1944,7 @@ void AsyncConnection::requeue_sent()
 void AsyncConnection::discard_requeued_up_to(uint64_t seq)
 {
   ldout(async_msgr->cct, 10) << __func__ << " " << seq << dendl;
-  std::lock_guard<std::mutex> l(write_lock);
+  std::lock_guard<CEPH_MUTEX> l(write_lock);
   if (out_q.count(CEPH_MSG_PRIO_HIGHEST) == 0)
     return;
   list<pair<bufferlist, Message*> >& rq = out_q[CEPH_MSG_PRIO_HIGHEST];
@@ -2082,7 +2084,7 @@ void AsyncConnection::fault()
 void AsyncConnection::was_session_reset()
 {
   ldout(async_msgr->cct,10) << __func__ << " started" << dendl;
-  std::lock_guard<std::mutex> l(write_lock);
+  std::lock_guard<CEPH_MUTEX> l(write_lock);
   if (delay_state)
     delay_state->discard();
   dispatch_queue->discard_queue(conn_id);
@@ -2111,7 +2113,7 @@ void AsyncConnection::_stop()
     delay_state->flush();
 
   ldout(async_msgr->cct, 2) << __func__ << dendl;
-  std::lock_guard<std::mutex> l(write_lock);
+  std::lock_guard<CEPH_MUTEX> l(write_lock);
 
   reset_recv_state();
   dispatch_queue->discard_queue(conn_id);
@@ -2292,7 +2294,7 @@ void AsyncConnection::handle_ack(uint64_t seq)
 {
   ldout(async_msgr->cct, 15) << __func__ << " got ack seq " << seq << dendl;
   // trim sent list
-  std::lock_guard<std::mutex> l(write_lock);
+  std::lock_guard<CEPH_MUTEX> l(write_lock);
   while (!sent.empty() && sent.front()->get_seq() <= seq) {
     Message* m = sent.front();
     sent.pop_front();
@@ -2307,7 +2309,7 @@ void AsyncConnection::DelayedDelivery::do_request(int id)
 {
   Message *m = nullptr;
   {
-    std::lock_guard<std::mutex> l(delay_lock);
+    std::lock_guard<CEPH_MUTEX> l(delay_lock);
     register_time_events.erase(id);
     if (stop_dispatch)
       return ;
@@ -2335,7 +2337,7 @@ void AsyncConnection::DelayedDelivery::flush() {
   stop_dispatch = true;
   center->submit_to(
       center->get_id(), [this] () mutable {
-    std::lock_guard<std::mutex> l(delay_lock);
+    std::lock_guard<CEPH_MUTEX> l(delay_lock);
     while (!delay_queue.empty()) {
       Message *m = delay_queue.front().second;
       if (msgr->ms_can_fast_dispatch(m)) {
@@ -2355,7 +2357,7 @@ void AsyncConnection::DelayedDelivery::flush() {
 void AsyncConnection::send_keepalive()
 {
   ldout(async_msgr->cct, 10) << __func__ << dendl;
-  std::lock_guard<std::mutex> l(write_lock);
+  std::lock_guard<CEPH_MUTEX> l(write_lock);
   if (can_write != WriteStatus::CLOSED) {
     keepalive = true;
     center->dispatch_event_external(write_handler);
@@ -2365,7 +2367,7 @@ void AsyncConnection::send_keepalive()
 void AsyncConnection::mark_down()
 {
   ldout(async_msgr->cct, 1) << __func__ << dendl;
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   _stop();
 }
 
@@ -2484,7 +2486,7 @@ void AsyncConnection::tick(uint64_t id)
   ldout(async_msgr->cct, 20) << __func__ << " last_id=" << last_tick_id
                              << " last_active" << last_active << dendl;
   assert(last_tick_id == id);
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   last_tick_id = 0;
   auto idle_period = std::chrono::duration_cast<std::chrono::microseconds>(now - last_active).count();
   if (inactive_timeout_us < (uint64_t)idle_period) {

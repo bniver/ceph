@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include "common/ceph_json.h"
 #include "common/RWLock.h"
 #include "common/RefCountedObj.h"
@@ -1672,7 +1674,7 @@ class RGWMetaSyncCR : public RGWCoroutine {
   RGWPeriodHistory::Cursor next; //< next period in history
   rgw_meta_sync_status sync_status;
 
-  std::mutex mutex; //< protect access to shard_crs
+  CEPH_MUTEX mutex; //< protect access to shard_crs
 
   // TODO: it should be enough to hold a reference on the stack only, as calling
   // RGWCoroutinesStack::wakeup() doesn't refer to the RGWCoroutine if it has
@@ -1716,7 +1718,7 @@ public:
           auto mdlog = sync_env->store->meta_mgr->get_log(period_id);
 
           // prevent wakeup() from accessing shard_crs while we're spawning them
-          std::lock_guard<std::mutex> lock(mutex);
+          std::lock_guard<CEPH_MUTEX> lock(mutex);
 
           // sync this period on each shard
           for (const auto& m : sync_status.sync_markers) {
@@ -1750,7 +1752,7 @@ public:
         drain_all();
         {
           // drop shard cr refs under lock
-          std::lock_guard<std::mutex> lock(mutex);
+          std::lock_guard<CEPH_MUTEX> lock(mutex);
           shard_crs.clear();
         }
         if (ret < 0) {
@@ -1773,7 +1775,7 @@ public:
   }
 
   void wakeup(int shard_id) {
-    std::lock_guard<std::mutex> lock(mutex);
+    std::lock_guard<CEPH_MUTEX> lock(mutex);
     auto iter = shard_crs.find(shard_id);
     if (iter == shard_crs.end()) {
       return;

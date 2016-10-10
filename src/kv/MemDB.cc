@@ -5,6 +5,8 @@
  * Author: Ramesh Chander, Ramesh.Chander@sandisk.com
  */
 
+#include "include/ceph_mutex.h"
+
 #include "include/compat.h"
 #include <set>
 #include <map>
@@ -65,7 +67,7 @@ std::string MemDB::_get_data_fn()
 
 void MemDB::_save()
 {
-  std::lock_guard<std::mutex> l(m_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_lock);
   dout(10) << __func__ << " Saving MemDB to file: "<< _get_data_fn().c_str() << dendl;
   int mode = 0644;
   int fd = TEMP_FAILURE_RETRY(::open(_get_data_fn().c_str(),
@@ -90,7 +92,7 @@ void MemDB::_save()
 
 int MemDB::_load()
 {
-  std::lock_guard<std::mutex> l(m_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_lock);
   dout(10) << __func__ << " Reading MemDB from file: "<< _get_data_fn().c_str() << dendl;
   /*
    * Open file and read it in single shot.
@@ -253,7 +255,7 @@ void MemDB::MDBTransactionImpl::merge(
 
 int MemDB::_setkey(ms_op_t &op)
 {
-  std::lock_guard<std::mutex> l(m_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_lock);
   std::string key = make_key(op.first.first, op.first.second);
   bufferlist bl = op.second;
 
@@ -276,7 +278,7 @@ int MemDB::_setkey(ms_op_t &op)
 
 int MemDB::_rmkey(ms_op_t &op)
 {
-  std::lock_guard<std::mutex> l(m_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_lock);
   std::string key = make_key(op.first.first, op.first.second);
 
   bufferlist bl_old;
@@ -306,7 +308,7 @@ std::shared_ptr<KeyValueDB::MergeOperator> MemDB::_find_merge_op(std::string pre
 
 int MemDB::_merge(ms_op_t &op)
 {
-  std::lock_guard<std::mutex> l(m_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_lock);
   std::string prefix = op.first.first;
   std::string key = make_key(op.first.first, op.first.second);
   bufferlist bl = op.second;
@@ -364,7 +366,7 @@ bool MemDB::_get(const string &prefix, const string &k, bufferlist *out)
 
 bool MemDB::_get_locked(const string &prefix, const string &k, bufferlist *out)
 {
-  std::lock_guard<std::mutex> l(m_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_lock);
   return _get(prefix, k, out);
 }
 
@@ -455,7 +457,7 @@ bufferlist MemDB::MDBWholeSpaceIteratorImpl::value()
 
 int MemDB::MDBWholeSpaceIteratorImpl::next()
 {
-  std::lock_guard<std::mutex> l(*m_btree_lock_p);
+  std::lock_guard<CEPH_MUTEX> l(*m_btree_lock_p);
   if (!iterator_validate()) {
     free_last();
     return -1;
@@ -472,7 +474,7 @@ int MemDB::MDBWholeSpaceIteratorImpl::next()
 
 int MemDB::MDBWholeSpaceIteratorImpl:: prev()
 {
-  std::lock_guard<std::mutex> l(*m_btree_lock_p);
+  std::lock_guard<CEPH_MUTEX> l(*m_btree_lock_p);
   if (!iterator_validate()) {
     free_last();
     return -1;
@@ -492,7 +494,7 @@ int MemDB::MDBWholeSpaceIteratorImpl:: prev()
  */
 int MemDB::MDBWholeSpaceIteratorImpl::seek_to_first(const std::string &k)
 {
-  std::lock_guard<std::mutex> l(*m_btree_lock_p);
+  std::lock_guard<CEPH_MUTEX> l(*m_btree_lock_p);
   free_last();
   if (k.empty()) {
     m_iter = m_btree_p->begin();
@@ -509,7 +511,7 @@ int MemDB::MDBWholeSpaceIteratorImpl::seek_to_first(const std::string &k)
 
 int MemDB::MDBWholeSpaceIteratorImpl::seek_to_last(const std::string &k)
 {
-  std::lock_guard<std::mutex> l(*m_btree_lock_p);
+  std::lock_guard<CEPH_MUTEX> l(*m_btree_lock_p);
   free_last();
   if (k.empty()) {
     m_iter = m_btree_p->end();
@@ -538,7 +540,7 @@ KeyValueDB::WholeSpaceIterator MemDB::_get_snapshot_iterator()
 int MemDB::MDBWholeSpaceIteratorImpl::upper_bound(const std::string &prefix,
     const std::string &after) {
 
-  std::lock_guard<std::mutex> l(*m_btree_lock_p);
+  std::lock_guard<CEPH_MUTEX> l(*m_btree_lock_p);
 
   dtrace << "upper_bound " << prefix.c_str() << after.c_str() << dendl;
   string k = make_key(prefix, after);
@@ -552,7 +554,7 @@ int MemDB::MDBWholeSpaceIteratorImpl::upper_bound(const std::string &prefix,
 
 int MemDB::MDBWholeSpaceIteratorImpl::lower_bound(const std::string &prefix,
     const std::string &to) {
-  std::lock_guard<std::mutex> l(*m_btree_lock_p);
+  std::lock_guard<CEPH_MUTEX> l(*m_btree_lock_p);
   dtrace << "lower_bound " << prefix.c_str() << to.c_str() << dendl;
   string k = make_key(prefix, to);
   m_iter = m_btree_p->lower_bound(k);

@@ -11,7 +11,7 @@
 #include "include/btree_interval_set.h"
 
 class BitMapAllocator : public Allocator {
-  std::mutex m_lock;
+  CEPH_MUTEX m_lock;
 
   int64_t m_num_uncommitted;
   int64_t m_num_committing;

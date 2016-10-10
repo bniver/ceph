@@ -19,6 +19,8 @@
  *
  */
 
+#include "include/ceph_mutex.h"
+
 #include <stdio.h>
 #include <signal.h>
 #include "common/Mutex.h"
@@ -272,7 +274,7 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
   unsigned getters,
   unsigned putters)
 {
-  std::mutex l;
+  CEPH_MUTEX l;
   std::condition_variable c;
   uint64_t total = 0;
   std::list<uint64_t> in_queue;
@@ -301,7 +303,7 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, 10);
 
-    std::unique_lock<std::mutex> g(l);
+    std::unique_lock<CEPH_MUTEX> g(l);
     while (!stop_getters) {
       g.unlock();
 
@@ -318,7 +320,7 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
   };
 
   auto putter = [&]() {
-    std::unique_lock<std::mutex> g(l);
+    std::unique_lock<CEPH_MUTEX> g(l);
     while (!stop_putters || !in_queue.empty()) {
       if (in_queue.empty()) {
 	c.wait(g);
@@ -350,7 +352,7 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
 
   std::this_thread::sleep_for(std::chrono::duration<double>(5));
   {
-    std::unique_lock<std::mutex> g(l);
+    std::unique_lock<CEPH_MUTEX> g(l);
     stop_getters = true;
     c.notify_all();
   }
@@ -358,7 +360,7 @@ std::pair<double, std::chrono::duration<double> > test_backoff(
   gts.clear();
 
   {
-    std::unique_lock<std::mutex> g(l);
+    std::unique_lock<CEPH_MUTEX> g(l);
     stop_putters = true;
     c.notify_all();
   }

@@ -15,7 +15,7 @@
 class ExtentFreelistManager : public FreelistManager {
   KeyValueDB *kvdb;
   std::string prefix;
-  std::mutex lock;
+  CEPH_MUTEX lock;
   uint64_t total_free;
 
   typedef btree::btree_map<uint64_t,uint64_t> map_t;

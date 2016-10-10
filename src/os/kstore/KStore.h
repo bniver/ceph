@@ -67,7 +67,7 @@ public:
     bool dirty;     // ???
     bool exists;
 
-    std::mutex flush_lock;  ///< protect flush_txns
+    CEPH_MUTEX flush_lock;  ///< protect flush_txns
     std::condition_variable flush_cond;   ///< wait here for unapplied txns
     set<TransContext*> flush_txns;   ///< committing txns
 
@@ -111,7 +111,7 @@ public:
 	boost::intrusive::list_member_hook<>,
 	&Onode::lru_item> > lru_list_t;
 
-    std::mutex lock;
+    CEPH_MUTEX lock;
     ceph::unordered_map<ghobject_t,OnodeRef> onode_map;  ///< forward lookups
     lru_list_t lru;                                      ///< lru
 
@@ -247,7 +247,7 @@ public:
 
   class OpSequencer : public Sequencer_impl {
   public:
-    std::mutex qlock;
+    CEPH_MUTEX qlock;
     std::condition_variable qcond;
     typedef boost::intrusive::list<
       TransContext,
@@ -268,18 +268,18 @@ public:
     }
 
     void queue_new(TransContext *txc) {
-      std::lock_guard<std::mutex> l(qlock);
+      std::lock_guard<CEPH_MUTEX> l(qlock);
       q.push_back(*txc);
     }
 
     void flush() {
-      std::unique_lock<std::mutex> l(qlock);
+      std::unique_lock<CEPH_MUTEX> l(qlock);
       while (!q.empty())
 	qcond.wait(l);
     }
 
     bool flush_commit(Context *c) {
-      std::lock_guard<std::mutex> l(qlock);
+      std::lock_guard<CEPH_MUTEX> l(qlock);
       if (q.empty()) {
 	return true;
       }
@@ -315,7 +315,7 @@ private:
   RWLock coll_lock;    ///< rwlock to protect coll_map
   ceph::unordered_map<coll_t, CollectionRef> coll_map;
 
-  std::mutex nid_lock;
+  CEPH_MUTEX nid_lock;
   uint64_t nid_last;
   uint64_t nid_max;
 
@@ -324,14 +324,14 @@ private:
   Finisher finisher;
 
   KVSyncThread kv_sync_thread;
-  std::mutex kv_lock;
+  CEPH_MUTEX kv_lock;
   std::condition_variable kv_cond, kv_sync_cond;
   bool kv_stop;
   deque<TransContext*> kv_queue, kv_committing;
 
   //Logger *logger;
   PerfCounters *logger;
-  std::mutex reap_lock;
+  CEPH_MUTEX reap_lock;
   list<CollectionRef> removed_collections;
 
 
@@ -376,7 +376,7 @@ private:
   void _kv_sync_thread();
   void _kv_stop() {
     {
-      std::lock_guard<std::mutex> l(kv_lock);
+      std::lock_guard<CEPH_MUTEX> l(kv_lock);
       kv_stop = true;
       kv_cond.notify_all();
     }

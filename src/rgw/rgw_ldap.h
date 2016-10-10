@@ -32,10 +32,10 @@ namespace rgw {
     std::string dnattr;
     LDAP *ldap;
     bool msad = false; /* TODO: possible future specialization */
-    std::mutex mtx;
+    CEPH_MUTEX mtx;
 
   public:
-    using lock_guard = std::lock_guard<std::mutex>;
+    using lock_guard = std::lock_guard<CEPH_MUTEX>;
 
     LDAPHelper(std::string _uri, std::string _binddn, std::string _bindpw,
 	       std::string _searchdn, std::string _searchfilter, std::string _dnattr)

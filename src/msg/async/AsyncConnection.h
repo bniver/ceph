@@ -53,7 +53,7 @@ class AsyncConnection : public Connection {
   ssize_t read_bulk(char *buf, unsigned len);
   ssize_t do_sendmsg(struct msghdr &msg, unsigned len, bool more);
   ssize_t try_send(bufferlist &bl, bool more=false) {
-    std::lock_guard<std::mutex> l(write_lock);
+    std::lock_guard<CEPH_MUTEX> l(write_lock);
     outcoming_bl.claim_append(bl);
     return _try_send(more);
   }
@@ -144,7 +144,7 @@ class AsyncConnection : public Connection {
   class DelayedDelivery : public EventCallback {
     std::set<uint64_t> register_time_events; // need to delete it if stop
     std::deque<std::pair<utime_t, Message*> > delay_queue;
-    std::mutex delay_lock;
+    CEPH_MUTEX delay_lock;
     AsyncMessenger *msgr;
     EventCenter *center;
     DispatchQueue *dispatch_queue;
@@ -163,14 +163,14 @@ class AsyncConnection : public Connection {
     void set_center(EventCenter *c) { center = c; }
     void do_request(int id) override;
     void queue(double delay_period, utime_t release, Message *m) {
-      std::lock_guard<std::mutex> l(delay_lock);
+      std::lock_guard<CEPH_MUTEX> l(delay_lock);
       delay_queue.push_back(std::make_pair(release, m));
       register_time_events.insert(center->create_time_event(delay_period*1000000, this));
     }
     void discard() {
       stop_dispatch = true;
       center->submit_to(center->get_id(), [this] () mutable {
-        std::lock_guard<std::mutex> l(delay_lock);
+        std::lock_guard<CEPH_MUTEX> l(delay_lock);
         while (!delay_queue.empty()) {
           Message *m = delay_queue.front().second;
           dispatch_queue->dispatch_throttle_release(m->get_dispatch_throttle_size());
@@ -212,7 +212,7 @@ class AsyncConnection : public Connection {
   void send_keepalive() override;
   void mark_down() override;
   void mark_disposable() override {
-    std::lock_guard<std::mutex> l(lock);
+    std::lock_guard<CEPH_MUTEX> l(lock);
     policy.lossy = true;
   }
   
@@ -306,7 +306,7 @@ class AsyncConnection : public Connection {
 
   DispatchQueue *dispatch_queue;
 
-  std::mutex write_lock;
+  CEPH_MUTEX write_lock;
   enum class WriteStatus {
     NOWRITE,
     REPLACING,
@@ -320,7 +320,7 @@ class AsyncConnection : public Connection {
   bufferlist outcoming_bl;
   bool keepalive;
 
-  std::mutex lock;
+  CEPH_MUTEX lock;
   utime_t backoff;         // backoff time
   EventCallbackRef read_handler;
   EventCallbackRef write_handler;

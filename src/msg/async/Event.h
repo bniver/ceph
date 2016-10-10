@@ -116,7 +116,7 @@ class EventCenter {
   int nevent;
   // Used only to external event
   pthread_t owner;
-  std::mutex external_lock;
+  CEPH_MUTEX external_lock;
   std::atomic_ulong external_num_events;
   deque<EventCallbackRef> external_events;
   vector<FileEvent> file_events;
@@ -169,7 +169,7 @@ class EventCenter {
  private:
   template <typename func>
   class C_submit_event : public EventCallback {
-    std::mutex lock;
+    CEPH_MUTEX lock;
     std::condition_variable cond;
     bool done = false;
     func f;
@@ -189,7 +189,7 @@ class EventCenter {
     }
     void wait() {
       assert(!nonwait);
-      std::unique_lock<std::mutex> l(lock);
+      std::unique_lock<CEPH_MUTEX> l(lock);
       while (!done)
         cond.wait(l);
     }

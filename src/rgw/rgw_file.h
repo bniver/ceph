@@ -153,7 +153,7 @@ namespace rgw {
   class RGWFileHandle : public cohort::lru::Object
   {
     struct rgw_file_handle fh;
-    std::mutex mtx;
+    CEPH_MUTEX mtx;
 
     RGWLibFS* fs;
     RGWFileHandle* bucket;
@@ -161,8 +161,8 @@ namespace rgw {
     /* const */ std::string name; /* XXX file or bucket name */
     /* const */ fh_key fhk;
 
-    using lock_guard = std::lock_guard<std::mutex>;
-    using unique_lock = std::unique_lock<std::mutex>;
+    using lock_guard = std::lock_guard<CEPH_MUTEX>;
+    using unique_lock = std::unique_lock<CEPH_MUTEX>;
 
     /* median file name length (HPC) has been found to be 16,
      * w/90% of file names <= 31 (Yifan Wang, CMU) */
@@ -609,7 +609,7 @@ namespace rgw {
 
     virtual bool reclaim();
 
-    typedef cohort::lru::LRU<std::mutex> FhLRU;
+    typedef cohort::lru::LRU<CEPH_MUTEX> FhLRU;
 
     struct FhLT
     {
@@ -655,7 +655,7 @@ namespace rgw {
     typedef bi::rbtree<RGWFileHandle, bi::compare<FhLT>, FhHook> FhTree;
 #endif
     typedef cohort::lru::TreeX<RGWFileHandle, FhTree, FhLT, FhEQ, fh_key,
-			       std::mutex> FHCache;
+			       CEPH_MUTEX> FHCache;
 
     virtual ~RGWFileHandle() {}
 
@@ -719,8 +719,8 @@ namespace rgw {
     static uint32_t write_completion_interval_s;
     std::string fsid;
 
-    using lock_guard = std::lock_guard<std::mutex>;
-    using unique_lock = std::unique_lock<std::mutex>;
+    using lock_guard = std::lock_guard<CEPH_MUTEX>;
+    using unique_lock = std::unique_lock<CEPH_MUTEX>;
 
     struct event
     {
@@ -752,7 +752,7 @@ namespace rgw {
     static ceph::timer<ceph::mono_clock> write_timer;
 
     struct State {
-      std::mutex mtx;
+      CEPH_MUTEX mtx;
       std::atomic<uint32_t> flags;
       std::deque<event> events;
 

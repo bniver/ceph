@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include <chrono>
 #include <cassert>
 #include <condition_variable>
@@ -80,14 +82,14 @@ struct Config {
 };
 
 class C_NotifyCond : public Context {
-  std::mutex *mutex;
+  CEPH_MUTEX *mutex;
   std::condition_variable *cond;
   bool *done;
 public:
-  C_NotifyCond(std::mutex *mutex, std::condition_variable *cond, bool *done)
+  C_NotifyCond(CEPH_MUTEX *mutex, std::condition_variable *cond, bool *done)
     : mutex(mutex), cond(cond), done(done) {}
   void finish(int r) {
-    std::lock_guard<std::mutex> lock(*mutex);
+    std::lock_guard<CEPH_MUTEX> lock(*mutex);
     *done = true;
     cond->notify_one();
   }
@@ -130,14 +132,14 @@ void osbench_worker(ObjectStore *os, const Config &cfg,
     }
 
     // set up the finisher
-    std::mutex mutex;
+    CEPH_MUTEX mutex;
     std::condition_variable cond;
     bool done = false;
 
     os->queue_transactions(&sequencer, tls, nullptr,
                            new C_NotifyCond(&mutex, &cond, &done));
 
-    std::unique_lock<std::mutex> lock(mutex);
+    std::unique_lock<CEPH_MUTEX> lock(mutex);
     cond.wait(lock, [&done](){ return done; });
     lock.unlock();
 

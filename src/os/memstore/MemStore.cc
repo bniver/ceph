@@ -21,6 +21,8 @@
 #include <sys/param.h>
 #endif
 
+#include "include/ceph_mutex.h"
+
 #include "include/types.h"
 #include "include/stringify.h"
 #include "include/unordered_map.h"
@@ -389,7 +391,7 @@ int MemStore::getattr(CollectionHandle &c_, const ghobject_t& oid,
   if (!o)
     return -ENOENT;
   string k(name);
-  std::lock_guard<std::mutex> lock(o->xattr_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->xattr_mutex);
   if (!o->xattr.count(k)) {
     return -ENODATA;
   }
@@ -417,7 +419,7 @@ int MemStore::getattrs(CollectionHandle &c_, const ghobject_t& oid,
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->xattr_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->xattr_mutex);
   aset = o->xattr;
   return 0;
 }
@@ -497,7 +499,7 @@ int MemStore::omap_get(
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->omap_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->omap_mutex);
   *header = o->omap_header;
   *out = o->omap;
   return 0;
@@ -518,7 +520,7 @@ int MemStore::omap_get_header(
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->omap_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->omap_mutex);
   *header = o->omap_header;
   return 0;
 }
@@ -537,7 +539,7 @@ int MemStore::omap_get_keys(
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->omap_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->omap_mutex);
   for (map<string,bufferlist>::iterator p = o->omap.begin();
        p != o->omap.end();
        ++p)
@@ -560,7 +562,7 @@ int MemStore::omap_get_values(
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->omap_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->omap_mutex);
   for (set<string>::const_iterator p = keys.begin();
        p != keys.end();
        ++p) {
@@ -586,7 +588,7 @@ int MemStore::omap_check_keys(
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->omap_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->omap_mutex);
   for (set<string>::const_iterator p = keys.begin();
        p != keys.end();
        ++p) {
@@ -606,35 +608,35 @@ public:
     : c(c), o(o), it(o->omap.begin()) {}
 
   int seek_to_first() {
-    std::lock_guard<std::mutex>(o->omap_mutex);
+    std::lock_guard<CEPH_MUTEX>(o->omap_mutex);
     it = o->omap.begin();
     return 0;
   }
   int upper_bound(const string &after) {
-    std::lock_guard<std::mutex>(o->omap_mutex);
+    std::lock_guard<CEPH_MUTEX>(o->omap_mutex);
     it = o->omap.upper_bound(after);
     return 0;
   }
   int lower_bound(const string &to) {
-    std::lock_guard<std::mutex>(o->omap_mutex);
+    std::lock_guard<CEPH_MUTEX>(o->omap_mutex);
     it = o->omap.lower_bound(to);
     return 0;
   }
   bool valid() {
-    std::lock_guard<std::mutex>(o->omap_mutex);
+    std::lock_guard<CEPH_MUTEX>(o->omap_mutex);
     return it != o->omap.end();
   }
   int next(bool validate=true) {
-    std::lock_guard<std::mutex>(o->omap_mutex);
+    std::lock_guard<CEPH_MUTEX>(o->omap_mutex);
     ++it;
     return 0;
   }
   string key() {
-    std::lock_guard<std::mutex>(o->omap_mutex);
+    std::lock_guard<CEPH_MUTEX>(o->omap_mutex);
     return it->first;
   }
   bufferlist value() {
-    std::lock_guard<std::mutex>(o->omap_mutex);
+    std::lock_guard<CEPH_MUTEX>(o->omap_mutex);
     return it->second;
   }
   int status() {
@@ -669,17 +671,17 @@ int MemStore::queue_transactions(Sequencer *osr,
   // Sequencer with a mutex. this guarantees ordering on a given sequencer,
   // while allowing operations on different sequencers to happen in parallel
   struct OpSequencer : public Sequencer_impl {
-    std::mutex mutex;
+    CEPH_MUTEX mutex;
     void flush() override {}
     bool flush_commit(Context*) override { return true; }
   };
 
-  std::unique_lock<std::mutex> lock;
+  std::unique_lock<CEPH_MUTEX> lock;
   if (osr) {
     auto seq = reinterpret_cast<OpSequencer**>(&osr->p);
     if (*seq == nullptr)
       *seq = new OpSequencer;
-    lock = std::unique_lock<std::mutex>((*seq)->mutex);
+    lock = std::unique_lock<CEPH_MUTEX>((*seq)->mutex);
   }
 
   for (vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p) {
@@ -1140,7 +1142,7 @@ int MemStore::_setattrs(const coll_t& cid, const ghobject_t& oid,
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->xattr_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->xattr_mutex);
   for (map<string,bufferptr>::const_iterator p = aset.begin(); p != aset.end(); ++p)
     o->xattr[p->first] = p->second;
   return 0;
@@ -1156,7 +1158,7 @@ int MemStore::_rmattr(const coll_t& cid, const ghobject_t& oid, const char *name
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->xattr_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->xattr_mutex);
   auto i = o->xattr.find(name);
   if (i == o->xattr.end())
     return -ENODATA;
@@ -1174,7 +1176,7 @@ int MemStore::_rmattrs(const coll_t& cid, const ghobject_t& oid)
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->xattr_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->xattr_mutex);
   o->xattr.clear();
   return 0;
 }
@@ -1196,7 +1198,7 @@ int MemStore::_clone(const coll_t& cid, const ghobject_t& oldoid,
   no->clone(oo.get(), 0, oo->get_size(), 0);
 
   // take xattr and omap locks with std::lock()
-  std::unique_lock<std::mutex>
+  std::unique_lock<CEPH_MUTEX>
       ox_lock(oo->xattr_mutex, std::defer_lock),
       nx_lock(no->xattr_mutex, std::defer_lock),
       oo_lock(oo->omap_mutex, std::defer_lock),
@@ -1247,7 +1249,7 @@ int MemStore::_omap_clear(const coll_t& cid, const ghobject_t &oid)
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->omap_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->omap_mutex);
   o->omap.clear();
   o->omap_header.clear();
   return 0;
@@ -1264,7 +1266,7 @@ int MemStore::_omap_setkeys(const coll_t& cid, const ghobject_t &oid,
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->omap_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->omap_mutex);
   bufferlist::iterator p = aset_bl.begin();
   __u32 num;
   ::decode(num, p);
@@ -1287,7 +1289,7 @@ int MemStore::_omap_rmkeys(const coll_t& cid, const ghobject_t &oid,
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->omap_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->omap_mutex);
   bufferlist::iterator p = keys_bl.begin();
   __u32 num;
   ::decode(num, p);
@@ -1311,7 +1313,7 @@ int MemStore::_omap_rmkeyrange(const coll_t& cid, const ghobject_t &oid,
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->omap_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->omap_mutex);
   map<string,bufferlist>::iterator p = o->omap.lower_bound(first);
   map<string,bufferlist>::iterator e = o->omap.lower_bound(last);
   o->omap.erase(p, e);
@@ -1329,7 +1331,7 @@ int MemStore::_omap_setheader(const coll_t& cid, const ghobject_t &oid,
   ObjectRef o = c->get_object(oid);
   if (!o)
     return -ENOENT;
-  std::lock_guard<std::mutex> lock(o->omap_mutex);
+  std::lock_guard<CEPH_MUTEX> lock(o->omap_mutex);
   o->omap_header = bl;
   return 0;
 }

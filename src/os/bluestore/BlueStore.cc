@@ -19,6 +19,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include "include/ceph_mutex.h"
+
 #include "BlueStore.h"
 #include "kv.h"
 #include "include/compat.h"
@@ -2221,7 +2223,7 @@ BlueStore::BlobRef BlueStore::ExtentMap::split_blob(
 
 void BlueStore::Onode::flush()
 {
-  std::unique_lock<std::mutex> l(flush_lock);
+  std::unique_lock<CEPH_MUTEX> l(flush_lock);
   dout(20) << __func__ << " " << flush_txns << dendl;
   while (!flush_txns.empty())
     flush_cond.wait(l);
@@ -4600,7 +4602,7 @@ void BlueStore::_sync()
   // flush aios in flight
   bdev->flush();
 
-  std::unique_lock<std::mutex> l(kv_lock);
+  std::unique_lock<CEPH_MUTEX> l(kv_lock);
   while (!kv_committing.empty() ||
 	 !kv_queue.empty()) {
     dout(20) << " waiting for kv to commit" << dendl;
@@ -4667,7 +4669,7 @@ BlueStore::CollectionRef BlueStore::_get_collection(const coll_t& cid)
 void BlueStore::_queue_reap_collection(CollectionRef& c)
 {
   dout(10) << __func__ << " " << c->cid << dendl;
-  std::lock_guard<std::mutex> l(reap_lock);
+  std::lock_guard<CEPH_MUTEX> l(reap_lock);
   removed_collections.push_back(c);
 }
 
@@ -4675,7 +4677,7 @@ void BlueStore::_reap_collections()
 {
   list<CollectionRef> removed_colls;
   {
-    std::lock_guard<std::mutex> l(reap_lock);
+    std::lock_guard<CEPH_MUTEX> l(reap_lock);
     removed_colls.swap(removed_collections);
   }
 
@@ -6126,7 +6128,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 	assert(r == 0);
       }
       {
-	std::lock_guard<std::mutex> l(kv_lock);
+	std::lock_guard<CEPH_MUTEX> l(kv_lock);
 	kv_queue.push_back(txc);
 	kv_cond.notify_one();
       }
@@ -6194,7 +6196,7 @@ void BlueStore::_txc_finish_io(TransContext *txc)
    */
 
   OpSequencer *osr = txc->osr.get();
-  std::lock_guard<std::mutex> l(osr->qlock);
+  std::lock_guard<CEPH_MUTEX> l(osr->qlock);
   txc->state = TransContext::STATE_IO_DONE;
 
   OpSequencer::q_list_t::iterator p = osr->q.iterator_to(*txc);
@@ -6259,7 +6261,7 @@ void BlueStore::_txc_write_nodes(TransContext *txc, KeyValueDB::Transaction t)
 	     << dendl;
     t->set(PREFIX_OBJ, o->key, bl);
 
-    std::lock_guard<std::mutex> l(o->flush_lock);
+    std::lock_guard<CEPH_MUTEX> l(o->flush_lock);
     o->flush_txns.insert(txc);
   }
 
@@ -6315,7 +6317,7 @@ void BlueStore::_txc_finish(TransContext *txc)
   for (set<OnodeRef>::iterator p = txc->onodes.begin();
        p != txc->onodes.end();
        ++p) {
-    std::lock_guard<std::mutex> l((*p)->flush_lock);
+    std::lock_guard<CEPH_MUTEX> l((*p)->flush_lock);
     dout(20) << __func__ << " onode " << *p << " had " << (*p)->flush_txns
 	     << dendl;
     assert((*p)->flush_txns.count(txc));
@@ -6337,7 +6339,7 @@ void BlueStore::_txc_finish(TransContext *txc)
 
   OpSequencerRef osr = txc->osr;
   {
-    std::lock_guard<std::mutex> l(osr->qlock);
+    std::lock_guard<CEPH_MUTEX> l(osr->qlock);
     txc->state = TransContext::STATE_DONE;
   }
 
@@ -6349,7 +6351,7 @@ void BlueStore::_osr_reap_done(OpSequencer *osr)
   CollectionRef c;
 
   {
-    std::lock_guard<std::mutex> l(osr->qlock);
+    std::lock_guard<CEPH_MUTEX> l(osr->qlock);
     dout(20) << __func__ << " osr " << osr << dendl;
     while (!osr->q.empty()) {
       TransContext *txc = &osr->q.front();
@@ -6437,7 +6439,7 @@ void BlueStore::_txc_finalize_kv(TransContext *txc, KeyValueDB::Transaction t)
 void BlueStore::_kv_sync_thread()
 {
   dout(10) << __func__ << " start" << dendl;
-  std::unique_lock<std::mutex> l(kv_lock);
+  std::unique_lock<CEPH_MUTEX> l(kv_lock);
   while (true) {
     assert(kv_committing.empty());
     assert(wal_cleaning.empty());
@@ -6479,7 +6481,7 @@ void BlueStore::_kv_sync_thread()
 	}
 	if (!kv_committing.empty()) {
 	  TransContext *first_txc = kv_committing.front();
-	  std::lock_guard<std::mutex> l(id_lock);
+	  std::lock_guard<CEPH_MUTEX> l(id_lock);
 	  if (high_nid + g_conf->bluestore_nid_prealloc/2 > nid_max) {
 	    nid_max = high_nid + g_conf->bluestore_nid_prealloc;
 	    bufferlist bl;
@@ -6619,8 +6621,8 @@ int BlueStore::_wal_finish(TransContext *txc)
   txc->wal_txn->released.swap(txc->released);
   assert(txc->wal_txn->released.empty());
 
-  std::lock_guard<std::mutex> l2(txc->osr->qlock);
-  std::lock_guard<std::mutex> l(kv_lock);
+  std::lock_guard<CEPH_MUTEX> l2(txc->osr->qlock);
+  std::lock_guard<CEPH_MUTEX> l(kv_lock);
   txc->state = TransContext::STATE_WAL_CLEANUP;
   txc->osr->qcond.notify_all();
   wal_cleanup_queue.push_back(txc);

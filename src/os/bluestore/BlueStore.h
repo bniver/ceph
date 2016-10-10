@@ -359,7 +359,7 @@ public:
     typedef boost::intrusive::unordered_set<SharedBlob>::bucket_type bucket_type;
     typedef boost::intrusive::unordered_set<SharedBlob>::bucket_traits bucket_traits;
 
-    std::mutex lock;   ///< protect lookup, insertion, removal
+    CEPH_MUTEX lock;   ///< protect lookup, insertion, removal
     int num_buckets;
     vector<bucket_type> buckets;
     boost::intrusive::unordered_set<SharedBlob> uset;
@@ -375,7 +375,7 @@ public:
     }
 
     SharedBlobRef lookup(uint64_t sbid) {
-      std::lock_guard<std::mutex> l(lock);
+      std::lock_guard<CEPH_MUTEX> l(lock);
       dummy.sbid = sbid;
       auto p = uset.find(dummy);
       if (p == uset.end()) {
@@ -385,13 +385,13 @@ public:
     }
 
     void add(SharedBlob *sb) {
-      std::lock_guard<std::mutex> l(lock);
+      std::lock_guard<CEPH_MUTEX> l(lock);
       uset.insert(*sb);
       sb->parent_set = this;
     }
 
     bool remove(SharedBlob *sb) {
-      std::lock_guard<std::mutex> l(lock);
+      std::lock_guard<CEPH_MUTEX> l(lock);
       if (sb->nref == 0) {
 	assert(sb->parent_set == this);
 	uset.erase(*sb);
@@ -401,7 +401,7 @@ public:
     }
 
     bool empty() {
-      std::lock_guard<std::mutex> l(lock);
+      std::lock_guard<CEPH_MUTEX> l(lock);
       return uset.empty();
     }
   };
@@ -714,7 +714,7 @@ public:
 
     ExtentMap extent_map;
 
-    std::mutex flush_lock;  ///< protect flush_txns
+    CEPH_MUTEX flush_lock;  ///< protect flush_txns
     std::condition_variable flush_cond;   ///< wait here for unapplied txns
     set<TransContext*> flush_txns;   ///< committing or wal txns
 
@@ -1213,7 +1213,7 @@ public:
 
   class OpSequencer : public Sequencer_impl {
   public:
-    std::mutex qlock;
+    CEPH_MUTEX qlock;
     std::condition_variable qcond;
     typedef boost::intrusive::list<
       TransContext,
@@ -1235,7 +1235,7 @@ public:
 
     Sequencer *parent;
 
-    std::mutex wal_apply_mutex;
+    CEPH_MUTEX wal_apply_mutex;
 
     uint64_t last_seq = 0;
 
@@ -1248,19 +1248,19 @@ public:
     }
 
     void queue_new(TransContext *txc) {
-      std::lock_guard<std::mutex> l(qlock);
+      std::lock_guard<CEPH_MUTEX> l(qlock);
       txc->seq = ++last_seq;
       q.push_back(*txc);
     }
 
     void flush() {
-      std::unique_lock<std::mutex> l(qlock);
+      std::unique_lock<CEPH_MUTEX> l(qlock);
       while (!q.empty())
 	qcond.wait(l);
     }
 
     bool flush_commit(Context *c) {
-      std::lock_guard<std::mutex> l(qlock);
+      std::lock_guard<CEPH_MUTEX> l(qlock);
       if (q.empty()) {
 	return true;
       }
@@ -1275,7 +1275,7 @@ public:
 
     /// if there is a wal on @seq, wait for it to apply
     void wait_for_wal_on_seq(uint64_t seq) {
-      std::unique_lock<std::mutex> l(qlock);
+      std::unique_lock<CEPH_MUTEX> l(qlock);
       restart:
       for (OpSequencer::q_list_t::reverse_iterator p = q.rbegin();
 	   p != q.rend();
@@ -1393,7 +1393,7 @@ private:
 
   vector<Cache*> cache_shards;
 
-  std::mutex id_lock;
+  CEPH_MUTEX id_lock;
   std::atomic<uint64_t> nid_last = {0};
   uint64_t nid_max = 0;
   std::atomic<uint64_t> blobid_last = {0};
@@ -1404,7 +1404,7 @@ private:
 
   interval_set<uint64_t> bluefs_extents;  ///< block extents owned by bluefs
 
-  std::mutex wal_lock;
+  CEPH_MUTEX wal_lock;
   atomic64_t wal_seq;
   ThreadPool wal_tp;
   WALWQ wal_wq;
@@ -1413,7 +1413,7 @@ private:
   vector<Finisher*> finishers;
 
   KVSyncThread kv_sync_thread;
-  std::mutex kv_lock;
+  CEPH_MUTEX kv_lock;
   std::condition_variable kv_cond, kv_sync_cond;
   bool kv_stop;
   deque<TransContext*> kv_queue, kv_committing;
@@ -1421,7 +1421,7 @@ private:
 
   PerfCounters *logger;
 
-  std::mutex reap_lock;
+  CEPH_MUTEX reap_lock;
   list<CollectionRef> removed_collections;
 
   RWLock debug_read_error_lock;
@@ -1536,7 +1536,7 @@ private:
   void _kv_sync_thread();
   void _kv_stop() {
     {
-      std::lock_guard<std::mutex> l(kv_lock);
+      std::lock_guard<CEPH_MUTEX> l(kv_lock);
       kv_stop = true;
       kv_cond.notify_all();
     }

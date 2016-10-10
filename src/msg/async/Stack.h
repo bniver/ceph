@@ -196,7 +196,7 @@ enum {
 };
 
 class Worker {
-  std::mutex init_lock;
+  CEPH_MUTEX init_lock;
   std::condition_variable init_cond;
   bool init = false;
 
@@ -256,11 +256,11 @@ class Worker {
     init_lock.unlock();
   }
   bool is_init() {
-    std::lock_guard<std::mutex> l(init_lock);
+    std::lock_guard<CEPH_MUTEX> l(init_lock);
     return init;
   }
   void wait_for_init() {
-    std::unique_lock<std::mutex> l(init_lock);
+    std::unique_lock<CEPH_MUTEX> l(init_lock);
     while (!init)
       init_cond.wait(l);
   }

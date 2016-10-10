@@ -29,7 +29,7 @@ using std::string;
 class MemDB : public KeyValueDB
 {
   typedef std::pair<std::pair<std::string, std::string>, bufferlist> ms_op_t;
-  std::mutex m_lock;
+  CEPH_MUTEX m_lock;
   uint64_t m_total_bytes;
   uint64_t m_allocated_bytes;
 
@@ -132,16 +132,16 @@ public:
       btree::btree_map<string, bufferptr>::iterator m_iter;
       std::pair<string, bufferlist> m_key_value;
       btree::btree_map<std::string, bufferptr> *m_btree_p;
-      std::mutex *m_btree_lock_p;
+      CEPH_MUTEX *m_btree_lock_p;
       uint64_t *global_seq_no;
       uint64_t this_seq_no;
 
   public:
     MDBWholeSpaceIteratorImpl(btree::btree_map<std::string, bufferptr> *btree_p,
-                             std::mutex *btree_lock_p, uint64_t *iterator_seq_no) {
+                             CEPH_MUTEX *btree_lock_p, uint64_t *iterator_seq_no) {
         m_btree_p = btree_p;
         m_btree_lock_p = btree_lock_p;
-	std::lock_guard<std::mutex> l(*m_btree_lock_p);
+	std::lock_guard<CEPH_MUTEX> l(*m_btree_lock_p);
 	global_seq_no = iterator_seq_no;
 	this_seq_no = *iterator_seq_no;
     }
@@ -173,12 +173,12 @@ public:
   };
 
   uint64_t get_estimated_size(std::map<std::string,uint64_t> &extra) {
-      std::lock_guard<std::mutex> l(m_lock);
+      std::lock_guard<CEPH_MUTEX> l(m_lock);
       return m_allocated_bytes;
   };
 
   int get_statfs(struct store_statfs_t *buf) {
-    std::lock_guard<std::mutex> l(m_lock);
+    std::lock_guard<CEPH_MUTEX> l(m_lock);
     buf->reset();
     buf->total = m_total_bytes;
     buf->allocated = m_allocated_bytes;

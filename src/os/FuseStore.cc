@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include "FuseStore.h"
 #include "os/ObjectStore.h"
 #include "include/stringify.h"
@@ -239,7 +241,7 @@ static int os_getattr(const char *path, struct stat *stbuf)
 
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
 
   stbuf->st_size = 0;
   stbuf->st_uid = 0;
@@ -390,7 +392,7 @@ static int os_readdir(const char *path,
 
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
 
   // we can't shift 32 bits or else off_t will go negative
   const int hash_shift = 31;
@@ -551,7 +553,7 @@ static int os_open(const char *path, struct fuse_file_info *fi)
 
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
 
   bufferlist *pbl = 0;
   switch (t) {
@@ -705,7 +707,7 @@ static int os_mkdir(const char *path, mode_t mode)
 
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
 
   ObjectStore::Transaction t;
   switch (f) {
@@ -771,7 +773,7 @@ static int os_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
 
   ObjectStore::Transaction t;
   bufferlist *pbl = 0;
@@ -837,7 +839,7 @@ static int os_release(const char *path, struct fuse_file_info *fi)
   dout(10) << __func__ << " " << path << dendl;
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
   FuseStore::OpenFile *o = reinterpret_cast<FuseStore::OpenFile*>(fi->fh);
   if (--o->ref == 0) {
     dout(10) << __func__ << " closing last " << o->path << dendl;
@@ -854,7 +856,7 @@ static int os_read(const char *path, char *buf, size_t size, off_t offset,
 	   << " size " << size << dendl;
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
   FuseStore::OpenFile *o = reinterpret_cast<FuseStore::OpenFile*>(fi->fh);
   if (!o)
     return 0;
@@ -875,7 +877,7 @@ static int os_write(const char *path, const char *buf, size_t size,
 	   << " size " << size << dendl;
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
   FuseStore::OpenFile *o = reinterpret_cast<FuseStore::OpenFile*>(fi->fh);
   if (!o)
     return 0;
@@ -914,7 +916,7 @@ int os_flush(const char *path, struct fuse_file_info *fi)
 
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
 
   FuseStore::OpenFile *o = reinterpret_cast<FuseStore::OpenFile*>(fi->fh);
   if (!o)
@@ -972,7 +974,7 @@ static int os_unlink(const char *path)
 
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
 
   ObjectStore::Transaction t;
 
@@ -1053,7 +1055,7 @@ static int os_truncate(const char *path, off_t size)
 
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
 
   if (fs->open_files.count(path)) {
     FuseStore::OpenFile *o = fs->open_files[path];
@@ -1080,7 +1082,7 @@ static int os_statfs(const char *path, struct statvfs *stbuf)
   dout(10) << __func__ << " " << path << dendl;
   fuse_context *fc = fuse_get_context();
   FuseStore *fs = static_cast<FuseStore*>(fc->private_data);
-  std::lock_guard<std::mutex> l(fs->lock);
+  std::lock_guard<CEPH_MUTEX> l(fs->lock);
 
   struct store_statfs_t s;
   int r = fs->store->statfs(&s);

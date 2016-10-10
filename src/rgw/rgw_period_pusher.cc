@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include <map>
 #include <thread>
 
@@ -167,7 +169,7 @@ RGWPeriodPusher::RGWPeriodPusher(RGWRados* store)
     return;
   }
 
-  std::lock_guard<std::mutex> lock(mutex);
+  std::lock_guard<CEPH_MUTEX> lock(mutex);
   handle_notify(std::move(period));
 }
 
@@ -186,7 +188,7 @@ void RGWPeriodPusher::handle_notify(RGWRealmNotify type,
     return;
   }
 
-  std::lock_guard<std::mutex> lock(mutex);
+  std::lock_guard<CEPH_MUTEX> lock(mutex);
 
   // we can't process this notification without access to our current realm
   // configuration. queue it until resume()
@@ -282,13 +284,13 @@ void RGWPeriodPusher::handle_notify(RGWZonesNeedPeriod&& period)
 void RGWPeriodPusher::pause()
 {
   ldout(cct, 4) << "paused for realm update" << dendl;
-  std::lock_guard<std::mutex> lock(mutex);
+  std::lock_guard<CEPH_MUTEX> lock(mutex);
   store = nullptr;
 }
 
 void RGWPeriodPusher::resume(RGWRados* store)
 {
-  std::lock_guard<std::mutex> lock(mutex);
+  std::lock_guard<CEPH_MUTEX> lock(mutex);
   this->store = store;
 
   ldout(cct, 4) << "resume with " << pending_periods.size()

@@ -11,6 +11,9 @@
  * Foundation. See file COPYING.
  *
  */
+
+#include "../../../include/ceph_mutex.h"
+
 #include "rgw/rgw_period_history.h"
 #include "rgw/rgw_rados.h"
 #include "global/global_init.h"

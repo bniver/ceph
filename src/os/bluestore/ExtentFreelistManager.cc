@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include "ExtentFreelistManager.h"
 #include "kv/KeyValueDB.h"
 #include "kv.h"
@@ -89,19 +91,19 @@ void ExtentFreelistManager::shutdown()
 
 void ExtentFreelistManager::dump()
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   _dump();
 }
 
 void ExtentFreelistManager::enumerate_reset()
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   enumerate_p = kv_free.begin();
 }
 
 bool ExtentFreelistManager::enumerate_next(uint64_t *offset, uint64_t *length)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   if (enumerate_p == kv_free.end())
     return false;
   *offset = enumerate_p->first;
@@ -139,7 +141,7 @@ void ExtentFreelistManager::allocate(
   uint64_t offset, uint64_t length,
   KeyValueDB::Transaction txn)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << offset << "~" << length << dendl;
   total_free -= length;
   auto p = kv_free.lower_bound(offset);
@@ -215,7 +217,7 @@ void ExtentFreelistManager::release(
   uint64_t offset, uint64_t length,
   KeyValueDB::Transaction txn)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " " << offset << "~" << length << dendl;
   total_free += length;
   auto p = kv_free.lower_bound(offset);

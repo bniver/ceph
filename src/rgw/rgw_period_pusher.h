@@ -42,7 +42,7 @@ class RGWPeriodPusher final : public RGWRealmWatcher::Watcher,
   CephContext *const cct;
   RGWRados* store;
 
-  std::mutex mutex;
+  CEPH_MUTEX mutex;
   epoch_t realm_epoch{0}; //< the current realm epoch being sent
   epoch_t period_epoch{0}; //< the current period epoch being sent
 

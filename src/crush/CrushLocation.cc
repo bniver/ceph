@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include "include/compat.h"
 #include "CrushLocation.h"
 #include "CrushWrapper.h"
@@ -32,7 +34,7 @@ int CrushLocation::_parse(const std::string& s)
 	       << loc << dendl;
     return -EINVAL;
   }
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   loc.swap(new_crush_location);
   lgeneric_dout(cct, 10) << "crush_location is " << loc << dendl;
   return 0;
@@ -105,7 +107,7 @@ int CrushLocation::init_on_startup()
       break;
     }
   }
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   loc.clear();
   loc.insert(make_pair<std::string,std::string>("host", hostname));
   loc.insert(make_pair<std::string,std::string>("root", "default"));

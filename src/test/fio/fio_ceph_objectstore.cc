@@ -8,6 +8,8 @@
  *
  */
 
+#include "include/ceph_mutex.h"
+
 #include <memory>
 #include <system_error>
 #include <vector>
@@ -66,7 +68,7 @@ struct Engine {
   boost::intrusive_ptr<CephContext> cct;
   std::unique_ptr<ObjectStore> os;
 
-  std::mutex lock;
+  CEPH_MUTEX lock;
   int ref_count;
 
   Engine(const thread_data* td);
@@ -79,11 +81,11 @@ struct Engine {
   }
 
   void ref() {
-    std::lock_guard<std::mutex> l(lock);
+    std::lock_guard<CEPH_MUTEX> l(lock);
     ++ref_count;
   }
   void deref() {
-    std::lock_guard<std::mutex> l(lock);
+    std::lock_guard<CEPH_MUTEX> l(lock);
     --ref_count;
     if (!ref_count) {
       os->umount();

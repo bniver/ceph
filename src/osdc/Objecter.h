@@ -1755,7 +1755,7 @@ public:
     int incarnation;
     ConnectionRef con;
     int num_locks;
-    std::unique_ptr<std::mutex[]> completion_locks;
+    std::unique_ptr<CEPH_MUTEX[]> completion_locks;
     using unique_completion_lock = std::unique_lock<
       decltype(completion_locks)::element_type>;
 
@@ -1763,7 +1763,7 @@ public:
     OSDSession(CephContext *cct, int o) :
       osd(o), incarnation(0), con(NULL),
       num_locks(cct->_conf->objecter_completion_locks_per_session),
-      completion_locks(new std::mutex[num_locks]) {}
+      completion_locks(new CEPH_MUTEX[num_locks]) {}
 
     ~OSDSession();
 

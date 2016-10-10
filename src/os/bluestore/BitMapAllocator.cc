@@ -8,6 +8,8 @@
  *  1. Make commiting and un commiting lists concurrent.
  */
 
+#include "include/ceph_mutex.h"
+
 #include "BitAllocator.h"
 
 #include "BitMapAllocator.h"
@@ -235,7 +237,7 @@ int BitMapAllocator::alloc_extents_dis(
 int BitMapAllocator::release(
   uint64_t offset, uint64_t length)
 {
-  std::lock_guard<std::mutex> l(m_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_lock);
   dout(10) << __func__ << " 0x"
            << std::hex << offset << "~" << length << std::dec
            << dendl;
@@ -254,7 +256,7 @@ uint64_t BitMapAllocator::get_free()
 
 void BitMapAllocator::dump(ostream& out)
 {
-  std::lock_guard<std::mutex> l(m_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_lock);
   dout(30) << __func__ << " instance " << (uint64_t) this
            << " committing: " << m_committing.num_intervals() << " extents"
            << dendl;
@@ -330,7 +332,7 @@ void BitMapAllocator::shutdown()
 
 void BitMapAllocator::commit_start()
 {
-  std::lock_guard<std::mutex> l(m_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_lock);
 
   dout(10) << __func__ << " instance " << (uint64_t) this
            << " releasing " << m_num_uncommitted
@@ -344,7 +346,7 @@ void BitMapAllocator::commit_start()
 
 void BitMapAllocator::commit_finish()
 {
-  std::lock_guard<std::mutex> l(m_lock);
+  std::lock_guard<CEPH_MUTEX> l(m_lock);
   dout(10) << __func__ << " instance " << (uint64_t) this
            << " released " << m_num_committing
            << " in extents " << m_committing.num_intervals()

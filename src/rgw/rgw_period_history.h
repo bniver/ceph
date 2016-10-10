@@ -79,12 +79,12 @@ class RGWPeriodHistory final {
     // private constructors for RGWPeriodHistory
     friend class RGWPeriodHistory::Impl;
 
-    Cursor(const History* history, std::mutex* mutex, epoch_t epoch)
+    Cursor(const History* history, CEPH_MUTEX* mutex, epoch_t epoch)
       : history(history), mutex(mutex), epoch(epoch) {}
 
     int error{0};
     const History* history{nullptr};
-    std::mutex* mutex{nullptr};
+    CEPH_MUTEX* mutex{nullptr};
     epoch_t epoch{0}; //< realm epoch of cursor position
   };
 

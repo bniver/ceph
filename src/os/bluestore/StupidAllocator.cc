@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "include/ceph_mutex.h"
+
 #include "StupidAllocator.h"
 #include "bluestore_types.h"
 #include "common/debug.h"
@@ -51,7 +53,7 @@ void StupidAllocator::_insert_free(uint64_t off, uint64_t len)
 
 int StupidAllocator::reserve(uint64_t need)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " need 0x" << std::hex << need
 	   << " num_free 0x" << num_free
 	   << " num_reserved 0x" << num_reserved << std::dec << dendl;
@@ -63,7 +65,7 @@ int StupidAllocator::reserve(uint64_t need)
 
 void StupidAllocator::unreserve(uint64_t unused)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " unused 0x" << std::hex << unused
 	   << " num_free 0x" << num_free
 	   << " num_reserved 0x" << num_reserved << std::dec << dendl;
@@ -88,7 +90,7 @@ int StupidAllocator::allocate(
   uint64_t want_size, uint64_t alloc_unit, int64_t hint,
   uint64_t *offset, uint32_t *length)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " want_size 0x" << std::hex << want_size
 	   << " alloc_unit 0x" << alloc_unit
 	   << " hint 0x" << hint << std::dec
@@ -243,7 +245,7 @@ int StupidAllocator::alloc_extents(
 int StupidAllocator::release(
   uint64_t offset, uint64_t length)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " 0x" << std::hex << offset << "~" << length
 	   << std::dec << dendl;
   uncommitted.insert(offset, length);
@@ -253,13 +255,13 @@ int StupidAllocator::release(
 
 uint64_t StupidAllocator::get_free()
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   return num_free;
 }
 
 void StupidAllocator::dump(ostream& out)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   for (unsigned bin = 0; bin < free.size(); ++bin) {
     dout(30) << __func__ << " free bin " << bin << ": "
 	     << free[bin].num_intervals() << " extents" << dendl;
@@ -290,7 +292,7 @@ void StupidAllocator::dump(ostream& out)
 
 void StupidAllocator::init_add_free(uint64_t offset, uint64_t length)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " 0x" << std::hex << offset << "~" << length
 	   << std::dec << dendl;
   _insert_free(offset, length);
@@ -299,7 +301,7 @@ void StupidAllocator::init_add_free(uint64_t offset, uint64_t length)
 
 void StupidAllocator::init_rm_free(uint64_t offset, uint64_t length)
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " 0x" << std::hex << offset << "~" << length
 	   << std::dec << dendl;
   btree_interval_set<uint64_t> rm;
@@ -327,7 +329,7 @@ void StupidAllocator::shutdown()
 
 void StupidAllocator::commit_start()
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " releasing " << num_uncommitted
 	   << " in extents " << uncommitted.num_intervals() << dendl;
   assert(committing.empty());
@@ -338,7 +340,7 @@ void StupidAllocator::commit_start()
 
 void StupidAllocator::commit_finish()
 {
-  std::lock_guard<std::mutex> l(lock);
+  std::lock_guard<CEPH_MUTEX> l(lock);
   dout(10) << __func__ << " released " << num_committing
 	   << " in extents " << committing.num_intervals() << dendl;
   for (auto p = committing.begin();

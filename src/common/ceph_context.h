@@ -20,6 +20,8 @@
 #include <string>
 #include <set>
 
+#include "include/ceph_mutex.h"
+
 #include "include/assert.h"
 #include "include/buffer_fwd.h"
 #include "include/atomic.h"

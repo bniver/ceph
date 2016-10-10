@@ -15,6 +15,8 @@
  *
  */
 
+#include "include/ceph_mutex.h"
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -444,7 +446,7 @@ void SharedDriverData::_aio_thread()
             derr << __func__ << " failed to read" << dendl;
             --t->ctx->num_reading;
             t->return_code = r;
-            std::unique_lock<std::mutex> l(t->ctx->lock);
+            std::unique_lock<CEPH_MUTEX> l(t->ctx->lock);
             t->ctx->cond.notify_all();
           } else {
             cur = ceph::coarse_real_clock::now(g_ceph_context);
@@ -460,7 +462,7 @@ void SharedDriverData::_aio_thread()
           if (r < 0) {
             derr << __func__ << " failed to flush" << dendl;
             t->return_code = r;
-            std::unique_lock<std::mutex> l(t->ctx->lock);
+            std::unique_lock<CEPH_MUTEX> l(t->ctx->lock);
             t->ctx->cond.notify_all();
           } else {
             cur = ceph::coarse_real_clock::now(g_ceph_context);
@@ -529,7 +531,7 @@ class NVMEManager {
   bool init = false;
   std::vector<SharedDriverData*> shared_driver_datas;
   std::thread dpdk_thread;
-  std::mutex probe_queue_lock;
+  CEPH_MUTEX probe_queue_lock;
   std::condition_variable probe_queue_cond;
   std::list<ProbeContext*> probe_queue;
 
@@ -669,7 +671,7 @@ int NVMEManager::try_get(const string &sn_tag, SharedDriverData **driver)
         if (spdk_nvme_retry_count < 0)
           spdk_nvme_retry_count = SPDK_NVME_DEFAULT_RETRY_COUNT;
 
-        std::unique_lock<std::mutex> l(probe_queue_lock);
+        std::unique_lock<CEPH_MUTEX> l(probe_queue_lock);
         while (true) {
           if (!probe_queue.empty()) {
             ProbeContext* ctxt = probe_queue.front();
@@ -692,7 +694,7 @@ int NVMEManager::try_get(const string &sn_tag, SharedDriverData **driver)
 
   ProbeContext ctx = {sn_tag, this, nullptr, false};
   {
-    std::unique_lock<std::mutex> l(probe_queue_lock);
+    std::unique_lock<CEPH_MUTEX> l(probe_queue_lock);
     probe_queue.push_back(&ctx);
     while (!ctx.done)
       probe_queue_cond.wait(l);
@@ -739,7 +741,7 @@ void io_complete(void *t, const struct spdk_nvme_cpl *completion)
     task->fill_cb();
     task->release_segs();
     {
-      std::unique_lock<std::mutex> l(ctx->lock);
+      std::unique_lock<CEPH_MUTEX> l(ctx->lock);
       ctx->cond.notify_all();
     }
   } else {
@@ -751,7 +753,7 @@ void io_complete(void *t, const struct spdk_nvme_cpl *completion)
     else
       task->return_code = 0;
     {
-      std::unique_lock<std::mutex> l(ctx->lock);
+      std::unique_lock<CEPH_MUTEX> l(ctx->lock);
       ctx->cond.notify_all();
     }
   }
@@ -925,7 +927,7 @@ int NVMEDevice::read(uint64_t off, uint64_t len, bufferlist *pbl,
   driver->queue_task(t);
 
   {
-    std::unique_lock<std::mutex> l(ioc->lock);
+    std::unique_lock<CEPH_MUTEX> l(ioc->lock);
     while (t->return_code > 0)
       ioc->cond.wait(l);
   }
@@ -935,7 +937,7 @@ int NVMEDevice::read(uint64_t off, uint64_t len, bufferlist *pbl,
   delete t;
   if (ioc->num_waiting.load()) {
     dout(20) << __func__ << " waking waiter" << dendl;
-    std::unique_lock<std::mutex> l(ioc->lock);
+    std::unique_lock<CEPH_MUTEX> l(ioc->lock);
     ioc->cond.notify_all();
   }
   return r;
@@ -962,7 +964,7 @@ int NVMEDevice::read_random(uint64_t off, uint64_t len, char *buf, bool buffered
   driver->queue_task(t);
 
   {
-    std::unique_lock<std::mutex> l(ioc.lock);
+    std::unique_lock<CEPH_MUTEX> l(ioc.lock);
     while (t->return_code > 0)
       ioc.cond.wait(l);
   }

@@ -12,6 +12,8 @@
  *
  */
 
+#include "../include/ceph_mutex.h"
+
 #include <stdint.h>
 #include <tuple>
 #include <iostream>

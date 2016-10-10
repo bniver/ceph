@@ -15,15 +15,15 @@ namespace rgw {
 
   class RGWLibProcess : public RGWProcess {
     RGWAccessKey access_key;
-    std::mutex mtx;
+    CEPH_MUTEX mtx;
     int gen;
     bool shutdown;
 
     typedef flat_map<RGWLibFS*, RGWLibFS*> FSMAP;
     FSMAP mounted_fs;
 
-    using lock_guard = std::lock_guard<std::mutex>;
-    using unique_lock = std::unique_lock<std::mutex>;
+    using lock_guard = std::lock_guard<CEPH_MUTEX>;
+    using unique_lock = std::unique_lock<CEPH_MUTEX>;
 
   public:
     RGWLibProcess(CephContext* cct, RGWProcessEnv* pe, int num_threads,

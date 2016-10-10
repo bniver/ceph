@@ -34,10 +34,10 @@
 class JournalThrottle {
   BackoffThrottle throttle;
 
-  std::mutex lock;
+  CEPH_MUTEX lock;
   /// deque<id, count>
   std::deque<std::pair<uint64_t, uint64_t> > journaled_ops;
-  using locker = std::unique_lock<std::mutex>;
+  using locker = std::unique_lock<CEPH_MUTEX>;
 
 public:
   /**

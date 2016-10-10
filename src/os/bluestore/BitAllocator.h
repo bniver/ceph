@@ -268,7 +268,7 @@ class BitMapAreaList {
 private:
   BitMapArea **m_items;
   int64_t m_num_items;
-  std::mutex m_marker_mutex;
+  CEPH_MUTEX m_marker_mutex;
 
 public:
   BitMapArea *get_nth_item(int64_t idx) {
@@ -318,7 +318,7 @@ class BitMapZone: public BitMapArea{
 private:
   std::atomic<int32_t> m_used_blocks;
   std::vector <BmapEntry> *m_bmap_list;
-  std::mutex m_lock;
+  CEPH_MUTEX m_lock;
 
 public:
   static int64_t count;
@@ -386,7 +386,7 @@ protected:
 
   int64_t m_used_blocks;
   int64_t m_reserved_blocks;
-  std::mutex m_blocks_lock;
+  CEPH_MUTEX m_blocks_lock;
   BitMapAreaList *m_child_list;
 
   virtual bool is_allocated(int64_t start_block, int64_t num_blocks);
@@ -489,7 +489,7 @@ typedef enum bmap_alloc_mode {
 class BitAllocator:public BitMapAreaIN{
 private:
   bmap_alloc_mode_t m_alloc_mode;
-  std::mutex m_serial_mutex;
+  CEPH_MUTEX m_serial_mutex;
   pthread_rwlock_t m_rw_lock;
   BitAllocatorStats *m_stats;
   bool m_is_stats_on;

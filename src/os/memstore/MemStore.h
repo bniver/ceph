@@ -35,8 +35,8 @@ private:
 
 public:
   struct Object : public RefCountedObject {
-    std::mutex xattr_mutex;
-    std::mutex omap_mutex;
+    CEPH_MUTEX xattr_mutex;
+    CEPH_MUTEX omap_mutex;
     map<string,bufferptr> xattr;
     bufferlist omap_header;
     map<string,bufferlist> omap;

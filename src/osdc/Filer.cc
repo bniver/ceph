@@ -12,6 +12,7 @@
  *
  */
 
+#include "include/ceph_mutex.h"
 
 #include <mutex>
 #include <algorithm>
@@ -291,9 +292,9 @@ bool Filer::_probed(Probe *probe, const object_t& oid, uint64_t size,
 // -----------------------
 
 struct PurgeRange {
-  std::mutex lock;
-  typedef std::lock_guard<std::mutex> lock_guard;
-  typedef std::unique_lock<std::mutex> unique_lock;
+  CEPH_MUTEX lock;
+  typedef std::lock_guard<CEPH_MUTEX> lock_guard;
+  typedef std::unique_lock<CEPH_MUTEX> unique_lock;
   inodeno_t ino;
   file_layout_t layout;
   SnapContext snapc;
